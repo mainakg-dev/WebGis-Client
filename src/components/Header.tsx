@@ -1,12 +1,19 @@
-import { Compass, LogOut } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
+import { Compass, LogOut } from 'lucide-react'
 
 export const Header = () => {
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn')
-    localStorage.removeItem('access_token')
+  const handleLogout = async () => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+    try {
+      await fetch(`${API_BASE_URL}/auth/signout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch (err) {
+      console.error('Logout API failed:', err)
+    }
     navigate({ to: '/login' })
   }
 

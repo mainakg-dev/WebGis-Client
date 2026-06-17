@@ -568,14 +568,9 @@ export default function MapComponent() {
   // Fetch existing images from NestJS database on mount
   useEffect(() => {
     const fetchExistingImages = async () => {
-      const token = localStorage.getItem('access_token')
-      if (!token) return
-
       try {
         const response = await fetch(`${API_BASE_URL}/s3/db-images`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: 'include',
         })
         if (response.ok) {
           const dbImages = await response.json()
@@ -665,12 +660,6 @@ export default function MapComponent() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const token = localStorage.getItem('access_token')
-    if (!token) {
-      alert('You must be signed in to upload images.')
-      return
-    }
-
     setLoading(true)
     setLoadingStatus(`Preparing folder upload for ${files.length} items...`)
 
@@ -703,9 +692,7 @@ export default function MapComponent() {
             prefixedName,
           )}&filetype=${encodeURIComponent(file.type)}&folder=${encodeURIComponent(type)}`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: 'include',
           },
         )
 
