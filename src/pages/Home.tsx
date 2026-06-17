@@ -1,9 +1,10 @@
 import { ErrorComponent } from '#/components/Error'
 import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
-import { loadKmzFeatures } from '#/utility'
+import { loadKmzFeatures, fetchImageGps, calculateHaversineDistance } from '#/utility'
 import {
   Activity,
+  Camera,
   ChevronRight,
   Compass,
   Database,
@@ -21,11 +22,13 @@ import {
   X,
 } from 'lucide-react'
 import Feature from 'ol/Feature'
+import Point from 'ol/geom/Point'
 import TileLayer from 'ol/layer/Tile'
 import VectorLayer from 'ol/layer/Vector'
 import Map from 'ol/Map'
 import 'ol/ol.css'
 import Overlay from 'ol/Overlay'
+import { fromLonLat, toLonLat } from 'ol/proj'
 import OSM from 'ol/source/OSM'
 import VectorSource from 'ol/source/Vector'
 import XYZ from 'ol/source/XYZ'
@@ -73,10 +76,25 @@ export default function MapComponent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tooltipText, setTooltipText] = useState('')
 
+  // Photo & Lightbox state
+  const [photoUrls, setPhotoUrls] = useState<string[]>([
+    'https://gbs-office.s3.ap-south-1.amazonaws.com/TTOWER_BV_FULL_TWR-007.JPG',
+  ])
+  const [photos, setPhotos] = useState<{
+    url: string
+    name: string
+    lat: number
+    lng: number
+    towerId: string | null
+    distance: number | null
+  }[]>([])
+  const [lightboxPhoto, setLightboxPhoto] = useState<any | null>(null)
+
   // Map reference holders for OpenLayers objects
   const mapInstanceRef = useRef<Map | null>(null)
   const towerLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const feederLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const photoLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const tooltipOverlayRef = useRef<Overlay | null>(null)
 
   // Define basemap layers
@@ -303,11 +321,25 @@ export default function MapComponent() {
       },
     })
 
+    const photoSource = new VectorSource()
+    const photoLayer = new VectorLayer({
+      source: photoSource,
+      style: new Style({
+        image: new Icon({
+          src: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%230ea5e9" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
+          scale: 0.9,
+        }),
+      }),
+      zIndex: 30,
+    })
+
     map.addLayer(feederLayer)
     map.addLayer(towerLayer)
+    map.addLayer(photoLayer)
 
     feederLayerRef.current = feederLayer
     towerLayerRef.current = towerLayer
+    photoLayerRef.current = photoLayer
 
     // 4. Map Event Listeners
     // Hover event for pointer changes & tooltip
@@ -319,13 +351,20 @@ export default function MapComponent() {
 
       const pixel = map.getEventPixel(evt.originalEvent)
       const feature = map.forEachFeatureAtPixel(pixel, (feat) => feat, {
-        layerFilter: (lyr) => lyr === feederLayer || lyr === towerLayer,
+        layerFilter: (lyr) =>
+          lyr === feederLayer || lyr === towerLayer || lyr === photoLayer,
       })
 
       if (feature) {
         map.getTargetElement().style.cursor = 'pointer'
         const name = feature.get('name') || 'Feature'
-        const type = feature.get('type') === 'tower' ? 'Tower' : 'Feeder'
+        const fType = feature.get('type')
+        const type =
+          fType === 'tower'
+            ? 'Tower'
+            : fType === 'photo'
+              ? 'Photo'
+              : 'Feeder'
         setTooltipText(`${type}: ${name}`)
         tooltipOverlayRef.current?.setPosition(evt.coordinate)
       } else {
@@ -461,10 +500,26 @@ export default function MapComponent() {
           const pixel = map.getEventPixel(evt.originalEvent)
           const feature = map.forEachFeatureAtPixel(pixel, (feat) => feat, {
             layerFilter: (lyr) =>
-              lyr === feederLayerRef.current || lyr === towerLayerRef.current,
+              lyr === feederLayerRef.current ||
+              lyr === towerLayerRef.current ||
+              lyr === photoLayerRef.current,
           })
 
           if (feature) {
+            const fType = feature.get('type')
+            if (fType === 'photo') {
+              const photoData = feature.get('photo')
+              setLightboxPhoto(photoData)
+              if (photoData.towerId) {
+                const tower = processedTowers.find((t) => t.id === photoData.towerId)
+                if (tower) {
+                  setSelectedFeature(tower)
+                  setSelectedFeatureId(tower.id)
+                }
+              }
+              return
+            }
+
             const id = feature.get('id')
             const type = feature.get('type') as 'tower' | 'feeder'
 
@@ -493,6 +548,76 @@ export default function MapComponent() {
 
     loadGisData()
   }, [])
+
+  // Load photo metadata and associate with towers within 50m buffer
+  useEffect(() => {
+    if (towers.length === 0) return
+
+    const loadPhotosMetadata = async () => {
+      const loadedPhotos: typeof photos = []
+
+      for (const url of photoUrls) {
+        try {
+          const metadata = await fetchImageGps(url)
+          if (metadata.success && metadata.lat && metadata.lng) {
+            let closestTower: ParsedFeature | null = null
+            let minDistance = Infinity
+
+            for (const t of towers) {
+              const [twrLng, twrLat] = toLonLat(t.coordinates)
+              const dist = calculateHaversineDistance(
+                metadata.lat!,
+                metadata.lng!,
+                twrLat,
+                twrLng,
+              )
+              if (dist < minDistance) {
+                minDistance = dist
+                closestTower = t
+              }
+            }
+
+            const isWithinBuffer = minDistance <= 50
+
+            loadedPhotos.push({
+              url,
+              name: url.split('/').pop() || 'Photo',
+              lat: metadata.lat!,
+              lng: metadata.lng!,
+              towerId: isWithinBuffer && closestTower ? closestTower.id : null,
+              distance: isWithinBuffer ? minDistance : null,
+            })
+          }
+        } catch (err) {
+          console.error('Failed to load metadata for photo:', url, err)
+        }
+      }
+
+      setPhotos(loadedPhotos)
+    }
+
+    loadPhotosMetadata()
+  }, [towers, photoUrls])
+
+  // Sync photos to the map's photoLayer
+  useEffect(() => {
+    const source = photoLayerRef.current?.getSource()
+    if (!source) return
+
+    source.clear()
+
+    photos.forEach((photo) => {
+      const geom = new Point(fromLonLat([photo.lng, photo.lat]))
+      const feature = new Feature({
+        geometry: geom,
+      })
+      feature.set('id', photo.name)
+      feature.set('name', photo.name)
+      feature.set('type', 'photo')
+      feature.set('photo', photo)
+      source.addFeature(feature)
+    })
+  }, [photos])
 
   // Update basemap visibility
   useEffect(() => {
@@ -563,6 +688,12 @@ export default function MapComponent() {
 
     return [...matchingTowers, ...matchingFeeders]
   }, [searchQuery, towers, feeders])
+
+  // Photos matched to selected tower
+  const towerPhotos = useMemo(() => {
+    if (!selectedFeature || selectedFeature.type !== 'tower') return []
+    return photos.filter((p) => p.towerId === selectedFeature.id)
+  }, [selectedFeature, photos])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
@@ -802,6 +933,108 @@ export default function MapComponent() {
             </div>
           </div>
 
+          {/* D2. Photo Manager */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
+              <Camera className="h-4 w-4 text-cyan-400" />
+              <span>Photo Manager</span>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3">
+              <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                Add S3 image URLs to dynamically extract GPS coordinates and link them to towers within 50m.
+              </p>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  const urlInput = e.currentTarget.elements.namedItem(
+                    'photoUrl',
+                  ) as HTMLInputElement
+                  const url = urlInput.value.trim()
+                  if (!url) return
+
+                  try {
+                    urlInput.disabled = true
+                    setLoadingStatus('Extracting metadata from S3...')
+                    setLoading(true)
+
+                    if (photoUrls.includes(url)) {
+                      alert('This image has already been loaded.')
+                      return
+                    }
+
+                    const metadata = await fetchImageGps(url)
+                    if (metadata.success && metadata.lat && metadata.lng) {
+                      setPhotoUrls((prev) => [...prev, url])
+                      urlInput.value = ''
+                    } else {
+                      alert(
+                        metadata.error ||
+                          'Could not find GPS tags in EXIF headers.',
+                      )
+                    }
+                  } catch (err: any) {
+                    alert('Error loading image EXIF: ' + err.message)
+                  } finally {
+                    urlInput.disabled = false
+                    setLoading(false)
+                  }
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  name="photoUrl"
+                  type="url"
+                  required
+                  placeholder="https://bucket.s3.../image.jpg"
+                  className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  type="submit"
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl px-3 py-2 text-xs font-semibold transition-colors shrink-0"
+                >
+                  Load
+                </button>
+              </form>
+
+              {photos.length > 0 && (
+                <div className="space-y-1.5 pt-1.5 border-t border-slate-900/60 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 pr-1">
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                    Linked Media ({photos.length})
+                  </div>
+                  {photos.map((p, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-[10px] py-1 border-b border-slate-900/40"
+                    >
+                      <span className="text-slate-300 font-semibold truncate max-w-[140px]">
+                        {p.name}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {p.towerId ? (
+                          <button
+                            onClick={() => {
+                              const tower = towers.find((t) => t.id === p.towerId)
+                              if (tower) zoomToFeature(tower)
+                            }}
+                            className="text-amber-400 font-bold bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                          >
+                            {p.towerId} ({p.distance?.toFixed(0)}m)
+                          </button>
+                        ) : (
+                          <span className="text-slate-500 font-bold bg-slate-800 px-1 py-0.5 rounded">
+                            Unlinked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* E. Selection Properties Panel */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
@@ -879,6 +1112,48 @@ export default function MapComponent() {
                     <span>Zoom to Extent</span>
                   </button>
                 </div>
+
+                {/* Photo Gallery for Selected Tower */}
+                {selectedFeature.type === 'tower' && (
+                  <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      <Camera className="h-4 w-4 text-sky-400" />
+                      <span>Inspection Gallery ({towerPhotos.length})</span>
+                    </div>
+
+                    {towerPhotos.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {towerPhotos.map((photo, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setLightboxPhoto(photo)}
+                            className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-sky-500 transition-all shadow-inner focus:outline-none"
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
+                            {/* Hover overlay */}
+                            <div className="absolute inset-0 bg-sky-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Eye className="h-4.5 w-4.5 text-white" />
+                            </div>
+                            {/* Distance badge */}
+                            {photo.distance !== null && (
+                              <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-emerald-400 font-bold border border-slate-850">
+                                {photo.distance.toFixed(0)}m
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-950/50 border border-slate-855 rounded-xl p-3.5 text-center text-[10px] text-slate-500 font-medium">
+                        No photos within 50m of this tower.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
@@ -926,6 +1201,97 @@ export default function MapComponent() {
 
         {/* 5. Error Overlay */}
         {error && <ErrorComponent error={error} />}
+
+        {/* 6. Lightbox Photo Album Overlay */}
+        {lightboxPhoto && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md transition-opacity duration-300">
+            {/* Close button */}
+            <button
+              onClick={() => setLightboxPhoto(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-900/60 p-2.5 rounded-full border border-slate-800 hover:border-slate-700 transition-all z-10"
+            >
+              <X className="h-6 w-6" />
+            </button>
+
+            <div className="max-w-4xl w-full flex flex-col md:flex-row gap-6 p-6 bg-slate-900/90 border border-slate-800 rounded-3xl relative shadow-2xl mx-4 backdrop-blur-md">
+              {/* Image Container */}
+              <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center relative min-h-[300px] max-h-[70vh] border border-slate-850">
+                <img
+                  src={lightboxPhoto.url}
+                  alt={lightboxPhoto.name}
+                  className="max-w-full max-h-[70vh] object-contain"
+                />
+              </div>
+
+              {/* Sidebar Details in Lightbox */}
+              <div className="w-full md:w-80 flex flex-col justify-between py-2 space-y-6">
+                <div className="space-y-4">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    Inspection Photo
+                  </span>
+                  <h3 className="text-white font-bold text-base leading-snug break-words">
+                    {lightboxPhoto.name}
+                  </h3>
+
+                  <div className="space-y-2.5 pt-2">
+                    <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
+                      <span className="text-slate-400 font-medium">GPS Latitude</span>
+                      <span className="text-slate-200 font-semibold text-right">
+                        {lightboxPhoto.lat.toFixed(6)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
+                      <span className="text-slate-400 font-medium">GPS Longitude</span>
+                      <span className="text-slate-200 font-semibold text-right">
+                        {lightboxPhoto.lng.toFixed(6)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
+                      <span className="text-slate-400 font-medium">Linked Tower</span>
+                      <span className="text-amber-400 font-bold text-right">
+                        {lightboxPhoto.towerId || 'None (Outside Buffer)'}
+                      </span>
+                    </div>
+                    {lightboxPhoto.distance !== null && (
+                      <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
+                        <span className="text-slate-400 font-medium">Offset Distance</span>
+                        <span className="text-emerald-400 font-bold text-right">
+                          {lightboxPhoto.distance.toFixed(2)} meters
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {lightboxPhoto.towerId && (
+                    <button
+                      onClick={() => {
+                        const tower = towers.find((t) => t.id === lightboxPhoto.towerId)
+                        if (tower) {
+                          zoomToFeature(tower)
+                          setLightboxPhoto(null)
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl py-2.5 text-xs font-semibold transition-all shadow-md shadow-amber-500/10"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      <span>Zoom to Linked Tower</span>
+                    </button>
+                  )}
+                  <a
+                    href={lightboxPhoto.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl py-2.5 text-xs font-semibold transition-all text-center"
+                  >
+                    Open Original Image
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

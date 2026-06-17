@@ -1,4 +1,16 @@
 import MapComponent from '#/pages/Home'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/')({ component: MapComponent })
+export const Route = createFileRoute('/')({
+  beforeLoad: () => {
+    if (typeof window !== 'undefined') {
+      const isLoggedIn = localStorage.getItem('isLoggedIn')
+      if (isLoggedIn !== 'true') {
+        throw redirect({
+          to: '/login',
+        })
+      }
+    }
+  },
+  component: MapComponent,
+})

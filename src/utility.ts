@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import KML from 'ol/format/KML'
+import ExifReader from 'exifreader'
 
 // Load KMZ file: fetch, unzip, extract KML & base64 images, parse features
 export const loadKmzFeatures = async (url: string) => {
@@ -55,4 +56,94 @@ export const loadKmzFeatures = async (url: string) => {
     dataProjection: 'EPSG:4326',
     featureProjection: 'EPSG:3857',
   })
+}
+
+// Fetch image from S3, extract GPS tags from EXIF, and return coordinates
+export const fetchImageGps = async (url: string) => {
+  try {
+    // Attempt to fetch only the first 128KB (EXIF header) to optimize bandwidth
+    let response = await fetch(url, {
+      headers: {
+        Range: 'bytes=0-131072',
+      },
+    })
+
+    let arrayBuffer: ArrayBuffer
+    if (response.status === 206 || response.ok) {
+      arrayBuffer = await response.arrayBuffer()
+    } else {
+      // Fallback to full download if range request fails or isn't supported
+      response = await fetch(url)
+      arrayBuffer = await response.arrayBuffer()
+    }
+
+    const tags = ExifReader.load(arrayBuffer)
+    const lat = tags['GPSLatitude']?.description
+    const lng = tags['GPSLongitude']?.description
+
+    if (lat !== undefined && lng !== undefined) {
+      return {
+        lat: Number(lat),
+        lng: Number(lng),
+        success: true,
+      }
+    }
+
+    return {
+      success: false,
+      error: 'No GPS tags found in image metadata.',
+    }
+  } catch (err: any) {
+    console.warn('EXIF partial fetch failed. Retrying full image fetch...', err)
+    try {
+      // Full download fallback
+      const response = await fetch(url)
+      const arrayBuffer = await response.arrayBuffer()
+      const tags = ExifReader.load(arrayBuffer)
+      const lat = tags['GPSLatitude']?.description
+      const lng = tags['GPSLongitude']?.description
+
+      if (lat !== undefined && lng !== undefined) {
+        return {
+          lat: Number(lat),
+          lng: Number(lng),
+          success: true,
+        }
+      }
+
+      return {
+        success: false,
+        error: 'No GPS coordinates found in image.',
+      }
+    } catch (fallbackErr: any) {
+      return {
+        success: false,
+        error: fallbackErr.message || 'Failed to fetch and parse image.',
+      }
+    }
+  }
+}
+
+// Calculate geodesic distance between two points in meters using Haversine formula
+export const calculateHaversineDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number => {
+  const R = 6371e3 // Earth radius in meters
+  const phi1 = (lat1 * Math.PI) / 180
+  const phi2 = (lat2 * Math.PI) / 180
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) *
+      Math.cos(phi2) *
+      Math.sin(deltaLambda / 2) *
+      Math.sin(deltaLambda / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return R * c
 }
