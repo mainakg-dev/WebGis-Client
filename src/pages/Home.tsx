@@ -151,13 +151,14 @@ export default function MapComponent() {
         if (cells.length === 2) {
           const key = cells[0].textContent?.trim() || ''
           const val = cells[1].textContent?.trim() || ''
-          if (
-            key &&
-            key !== val &&
-            !key.toLowerCase().includes('feedername') &&
-            !key.toLowerCase().includes('twrnum')
-          ) {
+          if (key && key !== val) {
             properties[key] = val
+            if (key.toLowerCase().includes('twrnum')) {
+              properties['twrnum'] = val
+            }
+            if (key.toLowerCase().includes('feedername')) {
+              properties['feedername'] = val
+            }
           }
         }
       })
@@ -169,6 +170,12 @@ export default function MapComponent() {
         const key = match[1].trim()
         const val = match[2].trim()
         properties[key] = val
+        if (key.toLowerCase().includes('twrnum')) {
+          properties['twrnum'] = val
+        }
+        if (key.toLowerCase().includes('feedername')) {
+          properties['feedername'] = val
+        }
       }
     }
     return properties
@@ -810,7 +817,16 @@ export default function MapComponent() {
 
     source.clear()
 
+    const seenTowers = new Set<string>()
+
     photos.forEach((photo) => {
+      if (photo.towerId) {
+        if (seenTowers.has(photo.towerId)) {
+          return
+        }
+        seenTowers.add(photo.towerId)
+      }
+
       const geom = new Point(fromLonLat([photo.lng, photo.lat]))
       const feature = new Feature({
         geometry: geom,
@@ -1299,8 +1315,12 @@ export default function MapComponent() {
 
                 {/* Properties Table */}
                 <div className="pl-2.5 max-h-60 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-                  {Object.entries(selectedFeature.properties).map(
-                    ([key, val]) => (
+                  {Object.entries(selectedFeature.properties)
+                    .filter(([key]) => {
+                      const lowerKey = key.toLowerCase()
+                      return !lowerKey.includes('feedername') && !lowerKey.includes('twrnum')
+                    })
+                    .map(([key, val]) => (
                       <div
                         key={key}
                         className="grid grid-cols-2 gap-2 py-1 border-b border-slate-900/60 text-xs"
@@ -1312,8 +1332,7 @@ export default function MapComponent() {
                           {val || 'N/A'}
                         </span>
                       </div>
-                    ),
-                  )}
+                    ))}
                 </div>
 
                 {/* Actions */}
