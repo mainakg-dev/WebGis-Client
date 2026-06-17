@@ -1,7 +1,12 @@
 import { ErrorComponent } from '#/components/Error'
 import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
-import { loadKmzFeatures, fetchImageGps, calculateHaversineDistance } from '#/utility'
+import {
+  calculateHaversineDistance,
+  fetchImageGps,
+  loadKmzFeatures,
+} from '#/utility'
+import ExifReader from 'exifreader'
 import {
   Activity,
   Camera,
@@ -37,9 +42,9 @@ import { getLength } from 'ol/sphere'
 import { Circle, Fill, Icon, Stroke, Style } from 'ol/style'
 import View from 'ol/View'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import ExifReader from 'exifreader'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
 // Interface for structured GIS feature properties
 interface ParsedFeature {
@@ -81,15 +86,17 @@ export default function MapComponent() {
   const [tooltipText, setTooltipText] = useState('')
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
-  const [photos, setPhotos] = useState<{
-    url: string
-    name: string
-    lat: number
-    lng: number
-    towerId: string | null
-    distance: number | null
-    type: 'rgb' | 'thermal'
-  }[]>([])
+  const [photos, setPhotos] = useState<
+    {
+      url: string
+      name: string
+      lat: number
+      lng: number
+      towerId: string | null
+      distance: number | null
+      type: 'rgb' | 'thermal'
+    }[]
+  >([])
   const [lightboxPhoto, setLightboxPhoto] = useState<any | null>(null)
 
   // Map reference holders for OpenLayers objects
@@ -362,11 +369,7 @@ export default function MapComponent() {
         const name = feature.get('name') || 'Feature'
         const fType = feature.get('type')
         const type =
-          fType === 'tower'
-            ? 'Tower'
-            : fType === 'photo'
-              ? 'Photo'
-              : 'Feeder'
+          fType === 'tower' ? 'Tower' : fType === 'photo' ? 'Photo' : 'Feeder'
         setTooltipText(`${type}: ${name}`)
         tooltipOverlayRef.current?.setPosition(evt.coordinate)
       } else {
@@ -513,7 +516,9 @@ export default function MapComponent() {
               const photoData = feature.get('photo')
               setLightboxPhoto(photoData)
               if (photoData.towerId) {
-                const tower = processedTowers.find((t) => t.id === photoData.towerId)
+                const tower = processedTowers.find(
+                  (t) => t.id === photoData.towerId,
+                )
                 if (tower) {
                   setSelectedFeature(tower)
                   setSelectedFeatureId(tower.id)
@@ -560,13 +565,13 @@ export default function MapComponent() {
       try {
         const response = await fetch(`${API_BASE_URL}/s3/db-images`, {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         })
         if (response.ok) {
           const dbImages = await response.json()
           const urls = dbImages.map((img: any) => img.url)
-          setPhotoUrls(prev => {
+          setPhotoUrls((prev) => {
             const newUrls = [...prev]
             urls.forEach((u: string) => {
               if (!newUrls.includes(u)) {
@@ -614,8 +619,13 @@ export default function MapComponent() {
 
             const isWithinBuffer = minDistance <= 50
             const filename = url.split('/').pop() || ''
-            const type = url.includes('/thermal/') || filename.includes('thermal-') ? 'thermal' : 'rgb'
-            const cleanName = filename.replace(/^[a-z0-9]{6}-/, '').replace(/^(rgb-|thermal-)/, '')
+            const type =
+              url.includes('/thermal/') || filename.includes('thermal-')
+                ? 'thermal'
+                : 'rgb'
+            const cleanName = filename
+              .replace(/^[a-z0-9]{6}-/, '')
+              .replace(/^(rgb-|thermal-)/, '')
 
             loadedPhotos.push({
               url,
@@ -720,21 +730,28 @@ export default function MapComponent() {
             const parsedLat = parseFloat(String(tags.GPSLatitude.description))
             const parsedLng = parseFloat(String(tags.GPSLongitude.description))
             if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
-              const latRef = tags.GPSLatitudeRef?.value ? String(tags.GPSLatitudeRef.value)[0] : undefined
-              const lngRef = tags.GPSLongitudeRef?.value ? String(tags.GPSLongitudeRef.value)[0] : undefined
-              
+              const latRef = tags.GPSLatitudeRef?.value
+                ? String(tags.GPSLatitudeRef.value)[0]
+                : undefined
+              const lngRef = tags.GPSLongitudeRef?.value
+                ? String(tags.GPSLongitudeRef.value)[0]
+                : undefined
+
               let finalLat = parsedLat
               let finalLng = parsedLng
-              
+
               if (latRef === 'S' && finalLat > 0) finalLat = -finalLat
               if (lngRef === 'W' && finalLng > 0) finalLng = -finalLng
-              
+
               lat = finalLat
               lng = finalLng
             }
           }
         } catch (exifErr) {
-          console.warn(`No EXIF tags or failed to parse for ${file.name}:`, exifErr)
+          console.warn(
+            `No EXIF tags or failed to parse for ${file.name}:`,
+            exifErr,
+          )
         }
 
         // 4. Calculate closest tower
@@ -1129,7 +1146,8 @@ export default function MapComponent() {
 
             <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-4">
               <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                Select an entire folder of inspection images. EXIF GPS tags are extracted locally and uploaded directly to S3.
+                Select an entire folder of inspection images. EXIF GPS tags are
+                extracted locally and uploaded directly to S3.
               </p>
 
               {/* Upload Folders Layout */}
@@ -1137,8 +1155,12 @@ export default function MapComponent() {
                 {/* RGB Folder Upload Button */}
                 <label className="flex flex-col items-center justify-center border border-dashed border-cyan-500/20 hover:border-cyan-500/50 bg-cyan-950/10 hover:bg-cyan-950/20 rounded-xl p-3.5 cursor-pointer text-center group transition-all">
                   <Camera className="h-5 w-5 text-cyan-400 group-hover:scale-110 transition-transform mb-1.5" />
-                  <span className="text-[10px] font-bold text-slate-200">Upload RGB</span>
-                  <span className="text-[8px] text-slate-500 mt-0.5">Folder</span>
+                  <span className="text-[10px] font-bold text-slate-200">
+                    Upload RGB
+                  </span>
+                  <span className="text-[8px] text-slate-500 mt-0.5">
+                    Folder
+                  </span>
                   <input
                     type="file"
                     multiple
@@ -1154,8 +1176,12 @@ export default function MapComponent() {
                 {/* Thermal Folder Upload Button */}
                 <label className="flex flex-col items-center justify-center border border-dashed border-orange-500/20 hover:border-orange-500/50 bg-orange-950/10 hover:bg-orange-950/20 rounded-xl p-3.5 cursor-pointer text-center group transition-all">
                   <Flame className="h-5 w-5 text-orange-400 group-hover:scale-110 transition-transform mb-1.5" />
-                  <span className="text-[10px] font-bold text-slate-200">Upload Thermal</span>
-                  <span className="text-[8px] text-slate-500 mt-0.5">Folder</span>
+                  <span className="text-[10px] font-bold text-slate-200">
+                    Upload Thermal
+                  </span>
+                  <span className="text-[8px] text-slate-500 mt-0.5">
+                    Folder
+                  </span>
                   <input
                     type="file"
                     multiple
@@ -1190,7 +1216,10 @@ export default function MapComponent() {
                             RGB
                           </span>
                         )}
-                        <span className="text-slate-300 font-semibold truncate max-w-[100px]" title={p.name}>
+                        <span
+                          className="text-slate-300 font-semibold truncate max-w-[100px]"
+                          title={p.name}
+                        >
                           {p.name}
                         </span>
                       </div>
@@ -1198,7 +1227,9 @@ export default function MapComponent() {
                         {p.towerId ? (
                           <button
                             onClick={() => {
-                              const tower = towers.find((t) => t.id === p.towerId)
+                              const tower = towers.find(
+                                (t) => t.id === p.towerId,
+                              )
                               if (tower) zoomToFeature(tower)
                             }}
                             className="text-amber-400 font-bold bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
@@ -1297,88 +1328,95 @@ export default function MapComponent() {
                 </div>
 
                 {/* Photo Gallery for Selected Tower */}
-                {selectedFeature.type === 'tower' && (() => {
-                  const rgbPhotos = towerPhotos.filter((p) => p.type === 'rgb')
-                  const thermalPhotos = towerPhotos.filter((p) => p.type === 'thermal')
+                {selectedFeature.type === 'tower' &&
+                  (() => {
+                    const rgbPhotos = towerPhotos.filter(
+                      (p) => p.type === 'rgb',
+                    )
+                    const thermalPhotos = towerPhotos.filter(
+                      (p) => p.type === 'thermal',
+                    )
 
-                  return (
-                    <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-4">
-                      {/* RGB Photos Section */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                          <Camera className="h-4 w-4 text-cyan-400" />
-                          <span>RGB Inspection ({rgbPhotos.length})</span>
+                    return (
+                      <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-4">
+                        {/* RGB Photos Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            <Camera className="h-4 w-4 text-cyan-400" />
+                            <span>RGB Inspection ({rgbPhotos.length})</span>
+                          </div>
+                          {rgbPhotos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2">
+                              {rgbPhotos.map((photo, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setLightboxPhoto(photo)}
+                                  className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
+                                >
+                                  <img
+                                    src={photo.url}
+                                    alt={photo.name}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                  <div className="absolute inset-0 bg-cyan-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Eye className="h-4.5 w-4.5 text-white" />
+                                  </div>
+                                  {photo.distance !== null && (
+                                    <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-cyan-400 font-bold border border-slate-850">
+                                      {photo.distance.toFixed(0)}m
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-650 font-medium">
+                              No RGB photos uploaded.
+                            </div>
+                          )}
                         </div>
-                        {rgbPhotos.length > 0 ? (
-                          <div className="grid grid-cols-3 gap-2">
-                            {rgbPhotos.map((photo, i) => (
-                              <button
-                                key={i}
-                                onClick={() => setLightboxPhoto(photo)}
-                                className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
-                              >
-                                <img
-                                  src={photo.url}
-                                  alt={photo.name}
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                />
-                                <div className="absolute inset-0 bg-cyan-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <Eye className="h-4.5 w-4.5 text-white" />
-                                </div>
-                                {photo.distance !== null && (
-                                  <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-cyan-400 font-bold border border-slate-850">
-                                    {photo.distance.toFixed(0)}m
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-650 font-medium">
-                            No RGB photos uploaded.
-                          </div>
-                        )}
-                      </div>
 
-                      {/* Thermal Photos Section */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                          <Flame className="h-4 w-4 text-orange-400" />
-                          <span>Thermal Inspection ({thermalPhotos.length})</span>
+                        {/* Thermal Photos Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            <Flame className="h-4 w-4 text-orange-400" />
+                            <span>
+                              Thermal Inspection ({thermalPhotos.length})
+                            </span>
+                          </div>
+                          {thermalPhotos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2">
+                              {thermalPhotos.map((photo, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setLightboxPhoto(photo)}
+                                  className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
+                                >
+                                  <img
+                                    src={photo.url}
+                                    alt={photo.name}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                  <div className="absolute inset-0 bg-orange-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Eye className="h-4.5 w-4.5 text-white" />
+                                  </div>
+                                  {photo.distance !== null && (
+                                    <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-orange-400 font-bold border border-slate-850">
+                                      {photo.distance.toFixed(0)}m
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-655 font-medium">
+                              No Thermal photos uploaded.
+                            </div>
+                          )}
                         </div>
-                        {thermalPhotos.length > 0 ? (
-                          <div className="grid grid-cols-3 gap-2">
-                            {thermalPhotos.map((photo, i) => (
-                              <button
-                                key={i}
-                                onClick={() => setLightboxPhoto(photo)}
-                                className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
-                              >
-                                <img
-                                  src={photo.url}
-                                  alt={photo.name}
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                />
-                                <div className="absolute inset-0 bg-orange-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <Eye className="h-4.5 w-4.5 text-white" />
-                                </div>
-                                {photo.distance !== null && (
-                                  <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-orange-400 font-bold border border-slate-850">
-                                    {photo.distance.toFixed(0)}m
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-655 font-medium">
-                            No Thermal photos uploaded.
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  )
-                })()}
+                    )
+                  })()}
               </div>
             ) : (
               <div className="bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
@@ -1460,26 +1498,34 @@ export default function MapComponent() {
 
                   <div className="space-y-2.5 pt-2">
                     <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
-                      <span className="text-slate-400 font-medium">GPS Latitude</span>
+                      <span className="text-slate-400 font-medium">
+                        GPS Latitude
+                      </span>
                       <span className="text-slate-200 font-semibold text-right">
                         {lightboxPhoto.lat.toFixed(6)}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
-                      <span className="text-slate-400 font-medium">GPS Longitude</span>
+                      <span className="text-slate-400 font-medium">
+                        GPS Longitude
+                      </span>
                       <span className="text-slate-200 font-semibold text-right">
                         {lightboxPhoto.lng.toFixed(6)}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
-                      <span className="text-slate-400 font-medium">Linked Tower</span>
+                      <span className="text-slate-400 font-medium">
+                        Linked Tower
+                      </span>
                       <span className="text-amber-400 font-bold text-right">
                         {lightboxPhoto.towerId || 'None (Outside Buffer)'}
                       </span>
                     </div>
                     {lightboxPhoto.distance !== null && (
                       <div className="grid grid-cols-2 py-1 border-b border-slate-850 text-xs">
-                        <span className="text-slate-400 font-medium">Offset Distance</span>
+                        <span className="text-slate-400 font-medium">
+                          Offset Distance
+                        </span>
                         <span className="text-emerald-400 font-bold text-right">
                           {lightboxPhoto.distance.toFixed(2)} meters
                         </span>
@@ -1492,7 +1538,9 @@ export default function MapComponent() {
                   {lightboxPhoto.towerId && (
                     <button
                       onClick={() => {
-                        const tower = towers.find((t) => t.id === lightboxPhoto.towerId)
+                        const tower = towers.find(
+                          (t) => t.id === lightboxPhoto.towerId,
+                        )
                         if (tower) {
                           zoomToFeature(tower)
                           setLightboxPhoto(null)
