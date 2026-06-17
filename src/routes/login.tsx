@@ -6,6 +6,8 @@ export const Route = createFileRoute('/login')({
   component: LoginPage,
 })
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+
 function LoginPage() {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
@@ -14,6 +16,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rememberMe, setRememberMe] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(false)
 
   // Redirect if already logged in
   useEffect(() => {
@@ -31,25 +34,56 @@ function LoginPage() {
       return
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.')
+      return
+    }
+
     setLoading(true)
 
-    // Simulate server authentication delay
-    setTimeout(() => {
-      // Allow any demo user for convenience (e.g. admin/admin or any valid input)
-      if (
-        (username.toLowerCase() === 'admin' && password === 'admin') ||
-        (username.trim().length >= 3 && password.length >= 4)
-      ) {
-        localStorage.setItem('isLoggedIn', 'true')
-        if (rememberMe) {
-          localStorage.setItem('rememberedUser', username)
+    try {
+      if (isSignUp) {
+        // Sign Up request
+        const signupRes = await fetch(`${API_BASE_URL}/auth/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password }),
+        })
+
+        if (!signupRes.ok) {
+          const errData = await signupRes.json().catch(() => ({}))
+          throw new Error(errData.message || 'Registration failed.')
         }
-        navigate({ to: '/' })
-      } else {
-        setError('Invalid username or password. (Hint: Use admin/admin)')
-        setLoading(false)
       }
-    }, 1200)
+
+      // Sign In request
+      const signinRes = await fetch(`${API_BASE_URL}/auth/signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      })
+
+      if (!signinRes.ok) {
+        const errData = await signinRes.json().catch(() => ({}))
+        throw new Error(errData.message || 'Invalid username or password.')
+      }
+
+      const data = await signinRes.json()
+      
+      localStorage.setItem('isLoggedIn', 'true')
+      localStorage.setItem('access_token', data.access_token)
+      if (rememberMe) {
+        localStorage.setItem('rememberedUser', username)
+      }
+      navigate({ to: '/' })
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -116,16 +150,18 @@ function LoginPage() {
                 <label className="text-xs font-semibold text-slate-400 tracking-wide">
                   Password
                 </label>
-                <a
-                  href="#forgot"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    alert('Please contact the SMOC administrator to reset your credentials.')
-                  }}
-                  className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
-                >
-                  Forgot password?
-                </a>
+                {!isSignUp && (
+                  <a
+                    href="#forgot"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      alert('Please contact the SMOC administrator to reset your credentials.')
+                    }}
+                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                )}
               </div>
               <div className="relative group">
                 <Lock className="absolute left-3 top-3.5 h-4.5 w-4.5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
@@ -178,16 +214,31 @@ function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  <span>Authenticating...</span>
+                  <span>{isSignUp ? 'Creating Account...' : 'Authenticating...'}</span>
                 </>
               ) : (
                 <>
                   <ShieldCheck className="h-4.5 w-4.5 text-white" />
-                  <span>Secure Sign In</span>
+                  <span>{isSignUp ? 'Register & Sign In' : 'Secure Sign In'}</span>
                 </>
               )}
             </button>
           </form>
+
+          {/* Toggle Link */}
+          <div className="text-center mt-6 text-xs text-slate-400">
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp)
+                setError(null)
+              }}
+              className="text-cyan-400 font-semibold hover:underline"
+            >
+              {isSignUp ? 'Sign In' : 'Sign Up'}
+            </button>
+          </div>
         </div>
 
         {/* Demo Credentials Info */}

@@ -6,6 +6,7 @@ export const Header = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('access_token')
     navigate({ to: '/login' })
   }
 

@@ -10,6 +10,7 @@ import {
   Database,
   Eye,
   EyeOff,
+  Flame,
   Info,
   Layers,
   Map as MapIcon,
@@ -36,6 +37,9 @@ import { getLength } from 'ol/sphere'
 import { Circle, Fill, Icon, Stroke, Style } from 'ol/style'
 import View from 'ol/View'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import ExifReader from 'exifreader'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
 // Interface for structured GIS feature properties
 interface ParsedFeature {
@@ -76,10 +80,7 @@ export default function MapComponent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tooltipText, setTooltipText] = useState('')
 
-  // Photo & Lightbox state
-  const [photoUrls, setPhotoUrls] = useState<string[]>([
-    'https://gbs-office.s3.ap-south-1.amazonaws.com/TTOWER_BV_FULL_TWR-007.JPG',
-  ])
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [photos, setPhotos] = useState<{
     url: string
     name: string
@@ -87,6 +88,7 @@ export default function MapComponent() {
     lng: number
     towerId: string | null
     distance: number | null
+    type: 'rgb' | 'thermal'
   }[]>([])
   const [lightboxPhoto, setLightboxPhoto] = useState<any | null>(null)
 
@@ -549,6 +551,39 @@ export default function MapComponent() {
     loadGisData()
   }, [])
 
+  // Fetch existing images from NestJS database on mount
+  useEffect(() => {
+    const fetchExistingImages = async () => {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/s3/db-images`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const dbImages = await response.json()
+          const urls = dbImages.map((img: any) => img.url)
+          setPhotoUrls(prev => {
+            const newUrls = [...prev]
+            urls.forEach((u: string) => {
+              if (!newUrls.includes(u)) {
+                newUrls.push(u)
+              }
+            })
+            return newUrls
+          })
+        }
+      } catch (err) {
+        console.error('Failed to fetch existing images:', err)
+      }
+    }
+
+    fetchExistingImages()
+  }, [])
+
   // Load photo metadata and associate with towers within 50m buffer
   useEffect(() => {
     if (towers.length === 0) return
@@ -578,14 +613,18 @@ export default function MapComponent() {
             }
 
             const isWithinBuffer = minDistance <= 50
+            const filename = url.split('/').pop() || ''
+            const type = url.includes('/thermal/') || filename.includes('thermal-') ? 'thermal' : 'rgb'
+            const cleanName = filename.replace(/^[a-z0-9]{6}-/, '').replace(/^(rgb-|thermal-)/, '')
 
             loadedPhotos.push({
               url,
-              name: url.split('/').pop() || 'Photo',
+              name: cleanName,
               lat: metadata.lat!,
               lng: metadata.lng!,
               towerId: isWithinBuffer && closestTower ? closestTower.id : null,
               distance: isWithinBuffer ? minDistance : null,
+              type,
             })
           }
         } catch (err) {
@@ -598,6 +637,154 @@ export default function MapComponent() {
 
     loadPhotosMetadata()
   }, [towers, photoUrls])
+
+  // Handle folder upload for RGB and Thermal images
+  const handleFolderUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: 'rgb' | 'thermal',
+  ) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      alert('You must be signed in to upload images.')
+      return
+    }
+
+    setLoading(true)
+    setLoadingStatus(`Preparing folder upload for ${files.length} items...`)
+
+    let uploadedCount = 0
+    let errorCount = 0
+
+    // Filter to image files
+    const imageFiles = Array.from(files).filter((file) =>
+      /\.(jpe?g|png|gif|webp)$/i.test(file.name),
+    )
+
+    if (imageFiles.length === 0) {
+      alert('No valid image files found in the selected folder.')
+      setLoading(false)
+      return
+    }
+
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i]
+      setLoadingStatus(
+        `Uploading ${type.toUpperCase()} image ${i + 1} of ${imageFiles.length}: ${file.name}...`,
+      )
+
+      try {
+        const prefixedName = `${type}-${file.name}`
+
+        // 1. Fetch presigned URL from backend
+        const res = await fetch(
+          `${API_BASE_URL}/s3/presigned-url?filename=${encodeURIComponent(
+            prefixedName,
+          )}&filetype=${encodeURIComponent(file.type)}&folder=${encodeURIComponent(type)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        )
+
+        if (!res.ok) {
+          throw new Error(`Failed to get presigned URL for ${file.name}`)
+        }
+
+        const { presignedUrl, imageUrl } = await res.json()
+
+        // 2. Upload file directly to S3 via PUT
+        const uploadRes = await fetch(presignedUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type,
+          },
+          body: file,
+        })
+
+        if (!uploadRes.ok) {
+          throw new Error(`Failed to upload ${file.name} to S3`)
+        }
+
+        // 3. Extract GPS coordinates locally using ExifReader
+        let lat: number | null = null
+        let lng: number | null = null
+
+        try {
+          const arrayBuffer = await file.arrayBuffer()
+          const tags = ExifReader.load(arrayBuffer)
+          if (tags.GPSLatitude && tags.GPSLongitude) {
+            const parsedLat = parseFloat(String(tags.GPSLatitude.description))
+            const parsedLng = parseFloat(String(tags.GPSLongitude.description))
+            if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+              const latRef = tags.GPSLatitudeRef?.value ? String(tags.GPSLatitudeRef.value)[0] : undefined
+              const lngRef = tags.GPSLongitudeRef?.value ? String(tags.GPSLongitudeRef.value)[0] : undefined
+              
+              let finalLat = parsedLat
+              let finalLng = parsedLng
+              
+              if (latRef === 'S' && finalLat > 0) finalLat = -finalLat
+              if (lngRef === 'W' && finalLng > 0) finalLng = -finalLng
+              
+              lat = finalLat
+              lng = finalLng
+            }
+          }
+        } catch (exifErr) {
+          console.warn(`No EXIF tags or failed to parse for ${file.name}:`, exifErr)
+        }
+
+        // 4. Calculate closest tower
+        let towerId: string | null = null
+        let distance: number | null = null
+
+        if (lat !== null && lng !== null) {
+          let minDistance = Infinity
+          let closestTower = null
+
+          for (const t of towers) {
+            const [twrLng, twrLat] = toLonLat(t.coordinates)
+            const dist = calculateHaversineDistance(lat, lng, twrLat, twrLng)
+            if (dist < minDistance) {
+              minDistance = dist
+              closestTower = t
+            }
+          }
+
+          if (minDistance <= 50 && closestTower) {
+            towerId = closestTower.id
+            distance = minDistance
+          }
+        }
+
+        // Add to our reactive photos state
+        const newPhoto = {
+          url: imageUrl,
+          name: file.name,
+          lat: lat || 0,
+          lng: lng || 0,
+          towerId,
+          distance,
+          type,
+        }
+
+        setPhotos((prev) => [...prev, newPhoto])
+        uploadedCount++
+      } catch (err) {
+        console.error(`Error uploading ${file.name}:`, err)
+        errorCount++
+      }
+    }
+
+    setLoading(false)
+    alert(
+      `Folder upload completed.\nSuccessfully uploaded: ${uploadedCount}\nErrors: ${errorCount}`,
+    )
+    e.target.value = ''
+  }
 
   // Sync photos to the map's photoLayer
   useEffect(() => {
@@ -937,80 +1124,76 @@ export default function MapComponent() {
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
               <Camera className="h-4 w-4 text-cyan-400" />
-              <span>Photo Manager</span>
+              <span>Inspection Image Uploader</span>
             </div>
 
-            <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3">
+            <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-4">
               <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                Add S3 image URLs to dynamically extract GPS coordinates and link them to towers within 50m.
+                Select an entire folder of inspection images. EXIF GPS tags are extracted locally and uploaded directly to S3.
               </p>
 
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault()
-                  const urlInput = e.currentTarget.elements.namedItem(
-                    'photoUrl',
-                  ) as HTMLInputElement
-                  const url = urlInput.value.trim()
-                  if (!url) return
+              {/* Upload Folders Layout */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* RGB Folder Upload Button */}
+                <label className="flex flex-col items-center justify-center border border-dashed border-cyan-500/20 hover:border-cyan-500/50 bg-cyan-950/10 hover:bg-cyan-950/20 rounded-xl p-3.5 cursor-pointer text-center group transition-all">
+                  <Camera className="h-5 w-5 text-cyan-400 group-hover:scale-110 transition-transform mb-1.5" />
+                  <span className="text-[10px] font-bold text-slate-200">Upload RGB</span>
+                  <span className="text-[8px] text-slate-500 mt-0.5">Folder</span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFolderUpload(e, 'rgb')}
+                    {...({
+                      webkitdirectory: 'true',
+                      directory: 'true',
+                    } as any)}
+                  />
+                </label>
 
-                  try {
-                    urlInput.disabled = true
-                    setLoadingStatus('Extracting metadata from S3...')
-                    setLoading(true)
+                {/* Thermal Folder Upload Button */}
+                <label className="flex flex-col items-center justify-center border border-dashed border-orange-500/20 hover:border-orange-500/50 bg-orange-950/10 hover:bg-orange-950/20 rounded-xl p-3.5 cursor-pointer text-center group transition-all">
+                  <Flame className="h-5 w-5 text-orange-400 group-hover:scale-110 transition-transform mb-1.5" />
+                  <span className="text-[10px] font-bold text-slate-200">Upload Thermal</span>
+                  <span className="text-[8px] text-slate-500 mt-0.5">Folder</span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFolderUpload(e, 'thermal')}
+                    {...({
+                      webkitdirectory: 'true',
+                      directory: 'true',
+                    } as any)}
+                  />
+                </label>
+              </div>
 
-                    if (photoUrls.includes(url)) {
-                      alert('This image has already been loaded.')
-                      return
-                    }
-
-                    const metadata = await fetchImageGps(url)
-                    if (metadata.success && metadata.lat && metadata.lng) {
-                      setPhotoUrls((prev) => [...prev, url])
-                      urlInput.value = ''
-                    } else {
-                      alert(
-                        metadata.error ||
-                          'Could not find GPS tags in EXIF headers.',
-                      )
-                    }
-                  } catch (err: any) {
-                    alert('Error loading image EXIF: ' + err.message)
-                  } finally {
-                    urlInput.disabled = false
-                    setLoading(false)
-                  }
-                }}
-                className="flex gap-2"
-              >
-                <input
-                  name="photoUrl"
-                  type="url"
-                  required
-                  placeholder="https://bucket.s3.../image.jpg"
-                  className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                />
-                <button
-                  type="submit"
-                  className="bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl px-3 py-2 text-xs font-semibold transition-colors shrink-0"
-                >
-                  Load
-                </button>
-              </form>
-
+              {/* Linked / Uploaded Media List */}
               {photos.length > 0 && (
-                <div className="space-y-1.5 pt-1.5 border-t border-slate-900/60 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 pr-1">
-                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="space-y-1.5 pt-2 border-t border-slate-900/60 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 pr-1">
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                     Linked Media ({photos.length})
                   </div>
                   {photos.map((p, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between text-[10px] py-1 border-b border-slate-900/40"
+                      className="flex items-center justify-between text-[10px] py-1.5 border-b border-slate-900/40"
                     >
-                      <span className="text-slate-300 font-semibold truncate max-w-[140px]">
-                        {p.name}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {p.type === 'thermal' ? (
+                          <span className="text-[8px] font-bold uppercase px-1 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/25 shrink-0">
+                            Thermal
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-bold uppercase px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 shrink-0">
+                            RGB
+                          </span>
+                        )}
+                        <span className="text-slate-300 font-semibold truncate max-w-[100px]" title={p.name}>
+                          {p.name}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {p.towerId ? (
                           <button
@@ -1114,46 +1297,88 @@ export default function MapComponent() {
                 </div>
 
                 {/* Photo Gallery for Selected Tower */}
-                {selectedFeature.type === 'tower' && (
-                  <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      <Camera className="h-4 w-4 text-sky-400" />
-                      <span>Inspection Gallery ({towerPhotos.length})</span>
-                    </div>
+                {selectedFeature.type === 'tower' && (() => {
+                  const rgbPhotos = towerPhotos.filter((p) => p.type === 'rgb')
+                  const thermalPhotos = towerPhotos.filter((p) => p.type === 'thermal')
 
-                    {towerPhotos.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {towerPhotos.map((photo, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setLightboxPhoto(photo)}
-                            className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-sky-500 transition-all shadow-inner focus:outline-none"
-                          >
-                            <img
-                              src={photo.url}
-                              alt={photo.name}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                            {/* Hover overlay */}
-                            <div className="absolute inset-0 bg-sky-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Eye className="h-4.5 w-4.5 text-white" />
-                            </div>
-                            {/* Distance badge */}
-                            {photo.distance !== null && (
-                              <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-emerald-400 font-bold border border-slate-850">
-                                {photo.distance.toFixed(0)}m
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                  return (
+                    <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-4">
+                      {/* RGB Photos Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          <Camera className="h-4 w-4 text-cyan-400" />
+                          <span>RGB Inspection ({rgbPhotos.length})</span>
+                        </div>
+                        {rgbPhotos.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {rgbPhotos.map((photo, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setLightboxPhoto(photo)}
+                                className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-cyan-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="h-4.5 w-4.5 text-white" />
+                                </div>
+                                {photo.distance !== null && (
+                                  <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-cyan-400 font-bold border border-slate-850">
+                                    {photo.distance.toFixed(0)}m
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-650 font-medium">
+                            No RGB photos uploaded.
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="bg-slate-950/50 border border-slate-855 rounded-xl p-3.5 text-center text-[10px] text-slate-500 font-medium">
-                        No photos within 50m of this tower.
+
+                      {/* Thermal Photos Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          <Flame className="h-4 w-4 text-orange-400" />
+                          <span>Thermal Inspection ({thermalPhotos.length})</span>
+                        </div>
+                        {thermalPhotos.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {thermalPhotos.map((photo, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setLightboxPhoto(photo)}
+                                className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-orange-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="h-4.5 w-4.5 text-white" />
+                                </div>
+                                {photo.distance !== null && (
+                                  <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-orange-400 font-bold border border-slate-850">
+                                    {photo.distance.toFixed(0)}m
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-655 font-medium">
+                            No Thermal photos uploaded.
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )
+                })()}
               </div>
             ) : (
               <div className="bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
