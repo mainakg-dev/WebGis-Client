@@ -98,6 +98,7 @@ export default function MapComponent() {
     }[]
   >([])
   const [lightboxPhoto, setLightboxPhoto] = useState<any | null>(null)
+  const [activeImgTab, setActiveImgTab] = useState<'rgb' | 'thermal'>('rgb')
 
   // Map reference holders for OpenLayers objects
   const mapInstanceRef = useRef<Map | null>(null)
@@ -915,6 +916,19 @@ export default function MapComponent() {
     return photos.filter((p) => p.towerId === selectedFeature.id)
   }, [selectedFeature, photos])
 
+  const rgbPhotos = useMemo(() => {
+    return towerPhotos.filter((p) => p.type === 'rgb')
+  }, [towerPhotos])
+
+  const thermalPhotos = useMemo(() => {
+    return towerPhotos.filter((p) => p.type === 'thermal')
+  }, [towerPhotos])
+
+  // Reset image tab to 'rgb' when selection changes
+  useEffect(() => {
+    setActiveImgTab('rgb')
+  }, [selectedFeature])
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
       {/* 1. Glassmorphic Sidebar */}
@@ -1265,187 +1279,15 @@ export default function MapComponent() {
             </div>
           </div>
 
-          {/* E. Selection Properties Panel */}
+          {/* E. Selection Info Placeholder */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
-                <Info className="h-4 w-4 text-cyan-400" />
-                <span>Feature Details</span>
-              </div>
-              {selectedFeature && (
-                <button
-                  onClick={() => {
-                    setSelectedFeature(null)
-                    setSelectedFeatureId(null)
-                  }}
-                  className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 font-semibold"
-                >
-                  Clear
-                </button>
-              )}
+            <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
+              <Info className="h-4 w-4 text-cyan-400" />
+              <span>Feature Details</span>
             </div>
-
-            {selectedFeature ? (
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-xl relative overflow-hidden">
-                {/* Visual Accent */}
-                <div
-                  className={`absolute top-0 left-0 bottom-0 w-1 ${
-                    selectedFeature.type === 'tower'
-                      ? 'bg-amber-400'
-                      : 'bg-blue-500'
-                  }`}
-                />
-
-                <div className="pl-2.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    {selectedFeature.type === 'tower' ? (
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        Tower
-                      </span>
-                    ) : (
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        Feeder Line
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="font-bold text-sm text-white leading-snug break-words">
-                    {selectedFeature.name}
-                  </h3>
-                </div>
-
-                {/* Properties Table */}
-                <div className="pl-2.5 max-h-60 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-                  {Object.entries(selectedFeature.properties)
-                    .filter(([key]) => {
-                      const lowerKey = key.toLowerCase()
-                      return !lowerKey.includes('feedername') && !lowerKey.includes('twrnum')
-                    })
-                    .map(([key, val]) => (
-                      <div
-                        key={key}
-                        className="grid grid-cols-2 gap-2 py-1 border-b border-slate-900/60 text-xs"
-                      >
-                        <span className="text-slate-400 font-medium capitalize">
-                          {key}
-                        </span>
-                        <span className="text-slate-200 font-semibold text-right break-words">
-                          {val || 'N/A'}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-
-                {/* Actions */}
-                <div className="pl-2.5 pt-1.5 flex gap-2">
-                  <button
-                    onClick={() => zoomToFeature(selectedFeature)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl py-2 px-3 text-xs font-semibold transition-all shadow-md shadow-cyan-500/10"
-                  >
-                    <Navigation className="h-3.5 w-3.5" />
-                    <span>Zoom to Extent</span>
-                  </button>
-                </div>
-
-                {/* Photo Gallery for Selected Tower */}
-                {selectedFeature.type === 'tower' &&
-                  (() => {
-                    const rgbPhotos = towerPhotos.filter(
-                      (p) => p.type === 'rgb',
-                    )
-                    const thermalPhotos = towerPhotos.filter(
-                      (p) => p.type === 'thermal',
-                    )
-
-                    return (
-                      <div className="pl-2.5 pt-3 border-t border-slate-800/80 space-y-4">
-                        {/* RGB Photos Section */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            <Camera className="h-4 w-4 text-cyan-400" />
-                            <span>RGB Inspection ({rgbPhotos.length})</span>
-                          </div>
-                          {rgbPhotos.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2">
-                              {rgbPhotos.map((photo, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => setLightboxPhoto(photo)}
-                                  className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
-                                >
-                                  <img
-                                    src={photo.url}
-                                    alt={photo.name}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                  <div className="absolute inset-0 bg-cyan-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Eye className="h-4.5 w-4.5 text-white" />
-                                  </div>
-                                  {photo.distance !== null && (
-                                    <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-cyan-400 font-bold border border-slate-850">
-                                      {photo.distance.toFixed(0)}m
-                                    </span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-650 font-medium">
-                              No RGB photos uploaded.
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Thermal Photos Section */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            <Flame className="h-4 w-4 text-orange-400" />
-                            <span>
-                              Thermal Inspection ({thermalPhotos.length})
-                            </span>
-                          </div>
-                          {thermalPhotos.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2">
-                              {thermalPhotos.map((photo, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => setLightboxPhoto(photo)}
-                                  className="group relative h-16 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
-                                >
-                                  <img
-                                    src={photo.url}
-                                    alt={photo.name}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                  <div className="absolute inset-0 bg-orange-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Eye className="h-4.5 w-4.5 text-white" />
-                                  </div>
-                                  {photo.distance !== null && (
-                                    <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-orange-400 font-bold border border-slate-850">
-                                      {photo.distance.toFixed(0)}m
-                                    </span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-2.5 text-center text-[10px] text-slate-655 font-medium">
-                              No Thermal photos uploaded.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
-              </div>
-            ) : (
-              <div className="bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
-                <Database className="h-8 w-8 text-slate-600 mb-3" />
-                <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-[200px]">
-                  Click on any tower or feeder line on the map to view its
-                  attributes.
-                </p>
-              </div>
-            )}
+            <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl text-center text-xs text-slate-400 leading-relaxed animate-pulse">
+              Click on a tower or feeder line on the map to open the Feature Details modal.
+            </div>
           </div>
         </div>
 
@@ -1483,6 +1325,195 @@ export default function MapComponent() {
 
         {/* 5. Error Overlay */}
         {error && <ErrorComponent error={error} />}
+
+        {/* 5.5 Feature Details Modal */}
+        {selectedFeature && (
+          <div className="fixed inset-0 z-45 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-850 rounded-3xl w-full max-w-4xl h-[600px] flex flex-col overflow-hidden shadow-2xl relative">
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setSelectedFeature(null)
+                  setSelectedFeatureId(null)
+                }}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-950/50 p-2 rounded-full border border-slate-800 hover:border-slate-700 transition-all z-10 animate-pulse"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Split Content Layout */}
+              <div className="flex h-full divide-x divide-slate-800">
+                {/* Left Side: Feature Properties & Tab Selection */}
+                <div className="w-2/5 p-6 flex flex-col justify-between h-full bg-slate-900/50">
+                  <div className="space-y-5">
+                    {/* Header */}
+                    <div>
+                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                        selectedFeature.type === 'tower'
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      }`}>
+                        {selectedFeature.type === 'tower' ? 'Tower' : 'Feeder Line'}
+                      </span>
+                      <h3 className="font-bold text-lg text-white leading-snug break-words mt-2">
+                        {selectedFeature.name}
+                      </h3>
+                    </div>
+
+                    {/* Properties List */}
+                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                      {Object.entries(selectedFeature.properties)
+                        .filter(([key]) => {
+                          const lowerKey = key.toLowerCase()
+                          return !lowerKey.includes('feedername') && !lowerKey.includes('twrnum')
+                        })
+                        .map(([key, val]) => (
+                          <div key={key} className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-800/60 text-xs">
+                            <span className="text-slate-400 font-medium capitalize">{key}</span>
+                            <span className="text-slate-200 font-semibold text-right break-words">{val || 'N/A'}</span>
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* Image Tab Buttons (Only for towers) */}
+                    {selectedFeature.type === 'tower' && (
+                      <div className="space-y-2 pt-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Select Image Category
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setActiveImgTab('rgb')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                              activeImgTab === 'rgb'
+                                ? 'bg-cyan-500/15 border-cyan-500 text-cyan-400 shadow-md shadow-cyan-500/5'
+                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                            }`}
+                          >
+                            <Camera className="h-4 w-4" />
+                            <span>RGB ({rgbPhotos.length})</span>
+                          </button>
+                          <button
+                            onClick={() => setActiveImgTab('thermal')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                              activeImgTab === 'thermal'
+                                ? 'bg-orange-500/15 border-orange-500 text-orange-400 shadow-md shadow-orange-500/5'
+                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                            }`}
+                          >
+                            <Flame className="h-4 w-4" />
+                            <span>Thermal ({thermalPhotos.length})</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Footer */}
+                  <div className="pt-4 border-t border-slate-800/80">
+                    <button
+                      onClick={() => zoomToFeature(selectedFeature)}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl py-2.5 text-xs font-semibold transition-all shadow-md shadow-cyan-500/10"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      <span>Zoom to Extent</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Side: Tab Contents (Images) */}
+                <div className="w-3/5 p-6 flex flex-col h-full bg-slate-950/20">
+                  {selectedFeature.type === 'tower' ? (
+                    <div className="flex flex-col h-full">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        {activeImgTab === 'rgb' ? (
+                          <>
+                            <Camera className="h-4 w-4 text-cyan-400" />
+                            <span>RGB Inspection Photos ({rgbPhotos.length})</span>
+                          </>
+                        ) : (
+                          <>
+                            <Flame className="h-4 w-4 text-orange-400" />
+                            <span>Thermal Inspection Photos ({thermalPhotos.length})</span>
+                          </>
+                        )}
+                      </h4>
+
+                      <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                        {activeImgTab === 'rgb' ? (
+                          rgbPhotos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-3">
+                              {rgbPhotos.map((photo, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setLightboxPhoto(photo)}
+                                  className="group relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
+                                >
+                                  <img
+                                    src={photo.url}
+                                    alt={photo.name}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                  <div className="absolute inset-0 bg-cyan-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Eye className="h-5 w-5 text-white" />
+                                  </div>
+                                  {photo.distance !== null && (
+                                    <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-cyan-400 font-bold border border-slate-850">
+                                      {photo.distance.toFixed(0)}m
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs py-8">
+                              <Camera className="h-8 w-8 text-slate-700 mb-2" />
+                              <span>No RGB photos uploaded.</span>
+                            </div>
+                          )
+                        ) : thermalPhotos.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-3">
+                            {thermalPhotos.map((photo, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setLightboxPhoto(photo)}
+                                className="group relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-orange-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="h-5 w-5 text-white" />
+                                </div>
+                                {photo.distance !== null && (
+                                  <span className="absolute bottom-1 right-1 text-[8px] bg-slate-900/85 px-1 py-0.5 rounded text-orange-400 font-bold border border-slate-850">
+                                    {photo.distance.toFixed(0)}m
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs py-8">
+                            <Flame className="h-8 w-8 text-slate-700 mb-2" />
+                            <span>No Thermal photos uploaded.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+                      <Database className="h-10 w-10 text-slate-800 mb-2" />
+                      <span>This feature has no inspection media.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 6. Lightbox Photo Album Overlay */}
         {lightboxPhoto && (
