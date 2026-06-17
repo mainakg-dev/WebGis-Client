@@ -1,37 +1,38 @@
-import 'ol/ol.css'
-import Map from 'ol/Map'
-import View from 'ol/View'
-import TileLayer from 'ol/layer/Tile'
-import VectorLayer from 'ol/layer/Vector'
-import OSM from 'ol/source/OSM'
-import XYZ from 'ol/source/XYZ'
-import VectorSource from 'ol/source/Vector'
-import KML from 'ol/format/KML'
-import Overlay from 'ol/Overlay'
-import Feature from 'ol/Feature'
-import { Style, Stroke, Fill, Circle, Icon } from 'ol/style'
-import { getLength } from 'ol/sphere'
-import { useEffect, useRef, useState, useMemo } from 'react'
-import JSZip from 'jszip'
+import { ErrorComponent } from '#/components/Error'
+import { Header } from '#/components/Header'
+import { LoadingComponent } from '#/components/Loading'
+import { loadKmzFeatures } from '#/utility'
 import {
-  Layers,
-  Search,
-  Info,
-  Map as MapIcon,
-  Sliders,
   Activity,
   ChevronRight,
-  X,
-  Navigation,
-  Loader2,
+  Compass,
   Database,
-  MapPin,
   Eye,
   EyeOff,
-  Sun,
+  Info,
+  Layers,
+  Map as MapIcon,
+  MapPin,
   Moon,
-  Compass
+  Navigation,
+  Search,
+  Sliders,
+  Sun,
+  X,
 } from 'lucide-react'
+import Feature from 'ol/Feature'
+import TileLayer from 'ol/layer/Tile'
+import VectorLayer from 'ol/layer/Vector'
+import Map from 'ol/Map'
+import 'ol/ol.css'
+import Overlay from 'ol/Overlay'
+import OSM from 'ol/source/OSM'
+import VectorSource from 'ol/source/Vector'
+import XYZ from 'ol/source/XYZ'
+import { getLength } from 'ol/sphere'
+import { Circle, Fill, Icon, Stroke, Style } from 'ol/style'
+import View from 'ol/View'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // Interface for structured GIS feature properties
 interface ParsedFeature {
@@ -59,10 +60,16 @@ export default function MapComponent() {
   const [showFeeders, setShowFeeders] = useState(true)
   const [towerOpacity, setTowerOpacity] = useState(1)
   const [feederOpacity, setFeederOpacity] = useState(1)
-  const [basemap, setBasemap] = useState<'dark' | 'light' | 'osm' | 'satellite'>('dark')
+  const [basemap, setBasemap] = useState<
+    'dark' | 'light' | 'osm' | 'satellite'
+  >('dark')
 
-  const [selectedFeature, setSelectedFeature] = useState<ParsedFeature | null>(null)
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState<ParsedFeature | null>(
+    null,
+  )
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
+    null,
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [tooltipText, setTooltipText] = useState('')
 
@@ -102,7 +109,9 @@ export default function MapComponent() {
   })
 
   // Parse key-value properties from KML's CDATA HTML Description
-  const parseKmlDescription = (descriptionHtml: string): Record<string, string> => {
+  const parseKmlDescription = (
+    descriptionHtml: string,
+  ): Record<string, string> => {
     const properties: Record<string, string> = {}
     if (!descriptionHtml) return properties
 
@@ -115,7 +124,12 @@ export default function MapComponent() {
         if (cells.length === 2) {
           const key = cells[0].textContent?.trim() || ''
           const val = cells[1].textContent?.trim() || ''
-          if (key && key !== val && !key.toLowerCase().includes('feedername') && !key.toLowerCase().includes('twrnum')) {
+          if (
+            key &&
+            key !== val &&
+            !key.toLowerCase().includes('feedername') &&
+            !key.toLowerCase().includes('twrnum')
+          ) {
             properties[key] = val
           }
         }
@@ -131,57 +145,6 @@ export default function MapComponent() {
       }
     }
     return properties
-  }
-
-  // Load KMZ file: fetch, unzip, extract KML & base64 images, parse features
-  const loadKmzFeatures = async (url: string) => {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to load ${url.split('/').pop()}: ${response.statusText}`)
-    }
-    const arrayBuffer = await response.arrayBuffer()
-    const zip = await JSZip.loadAsync(arrayBuffer)
-
-    // Find the main KML file in the zip
-    const kmlFileName = Object.keys(zip.files).find((name) => name.endsWith('.kml'))
-    if (!kmlFileName) {
-      throw new Error('Invalid KMZ: No KML file found inside.')
-    }
-
-    let kmlText = await zip.files[kmlFileName].async('text')
-
-    // Find and extract all image files from the zip
-    const imageFiles = Object.keys(zip.files).filter(
-      (name) =>
-        name.endsWith('.png') ||
-        name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.gif')
-    )
-
-    const images: Record<string, string> = {}
-    for (const imgName of imageFiles) {
-      const base64Data = await zip.files[imgName].async('base64')
-      const ext = imgName.split('.').pop() || 'png'
-      const mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`
-      images[imgName] = `data:${mimeType};base64,${base64Data}`
-    }
-
-    // Replace relative image references in the KML text with Base64 data URLs
-    for (const [imgName, dataUrl] of Object.entries(images)) {
-      kmlText = kmlText.replaceAll(imgName, dataUrl)
-    }
-
-    // Parse KML text to OpenLayers features
-    const kmlFormat = new KML({
-      extractStyles: true,
-      showPointNames: false,
-    })
-
-    return kmlFormat.readFeatures(kmlText, {
-      dataProjection: 'EPSG:4326',
-      featureProjection: 'EPSG:3857',
-    })
   }
 
   // Effect to initialize the map
@@ -223,7 +186,7 @@ export default function MapComponent() {
     const feederLayer = new VectorLayer({
       source: feederSource,
       style: (featureLike) => {
-        const feature = featureLike as Feature
+        const feature = featureLike
         const fId = feature.get('id')
         const name = feature.get('name') || ''
         const isSelected = fId === selectedFeatureIdRef.current
@@ -273,7 +236,10 @@ export default function MapComponent() {
         let iconSrc = ''
         const featureStyle = feature.getStyle()
         if (featureStyle) {
-          const styles = typeof featureStyle === 'function' ? featureStyle(feature, 1) : featureStyle
+          const styles =
+            typeof featureStyle === 'function'
+              ? featureStyle(feature, 1)
+              : featureStyle
           const styleObj = Array.isArray(styles) ? styles[0] : styles
           if (styleObj && typeof styleObj.getImage === 'function') {
             const img = styleObj.getImage() as any
@@ -300,7 +266,7 @@ export default function MapComponent() {
                 }),
               }),
               zIndex: 19,
-            })
+            }),
           )
         }
 
@@ -312,7 +278,7 @@ export default function MapComponent() {
                 scale: isSelected ? 0.65 : 0.45, // Scale up standard icon slightly for visibility
               }),
               zIndex: 20,
-            })
+            }),
           )
         } else {
           // Fallback: A nice glowing dot
@@ -329,7 +295,7 @@ export default function MapComponent() {
                 }),
               }),
               zIndex: 20,
-            })
+            }),
           )
         }
 
@@ -390,15 +356,16 @@ export default function MapComponent() {
         setLoading(true)
         setLoadingStatus('Downloading Feeder KMZ...')
         const feederFeatures = await loadKmzFeatures(
-          '/KML/FEEDER_220kV%20Mendhasal%20-%20Bidanasi%20DC%20Line.kmz'
+          '/KML/FEEDER_220kV%20Mendhasal%20-%20Bidanasi%20DC%20Line.kmz',
         )
 
         setLoadingStatus('Downloading Tower KMZ...')
         const towerFeatures = await loadKmzFeatures(
-          '/KML/TWR_220kV%20Mendhasal%20-%20Bidanasi%20DC%20Line.kmz'
+          '/KML/TWR_220kV%20Mendhasal%20-%20Bidanasi%20DC%20Line.kmz',
         )
 
         setLoadingStatus('Parsing data structures...')
+
         const processedFeeders = feederFeatures.map((feat, index) => {
           const name = feat.get('name') || ''
           const desc = feat.get('description') || ''
@@ -493,7 +460,8 @@ export default function MapComponent() {
         map?.on('singleclick', (evt) => {
           const pixel = map.getEventPixel(evt.originalEvent)
           const feature = map.forEachFeatureAtPixel(pixel, (feat) => feat, {
-            layerFilter: (lyr) => lyr === feederLayerRef.current || lyr === towerLayerRef.current,
+            layerFilter: (lyr) =>
+              lyr === feederLayerRef.current || lyr === towerLayerRef.current,
           })
 
           if (feature) {
@@ -501,7 +469,8 @@ export default function MapComponent() {
             const type = feature.get('type') as 'tower' | 'feeder'
 
             // Look up processed features
-            const collection = type === 'tower' ? processedTowers : processedFeeders
+            const collection =
+              type === 'tower' ? processedTowers : processedFeeders
             const match = collection.find((item) => item.id === id)
 
             if (match) {
@@ -600,22 +569,7 @@ export default function MapComponent() {
       {/* 1. Glassmorphic Sidebar */}
       <div className="w-96 flex flex-col bg-slate-900 border-r border-slate-800 h-full shadow-2xl z-10 overflow-hidden shrink-0">
         {/* Header */}
-        <div className="p-5 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <Compass className="h-5 w-5 text-white animate-pulse" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-tight tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400">
-                WebGIS Client
-              </h1>
-              <p className="text-xs text-slate-400 font-medium">Transmission Line Viewer</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Live
-          </span>
-        </div>
+        <Header />
 
         {/* Scrollable Contents */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
@@ -658,7 +612,9 @@ export default function MapComponent() {
                       ) : (
                         <Activity className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                       )}
-                      <span className="font-medium truncate max-w-[200px]">{item.name}</span>
+                      <span className="font-medium truncate max-w-[200px]">
+                        {item.name}
+                      </span>
                     </div>
                     <ChevronRight className="h-3 w-3 text-slate-500 group-hover:translate-x-0.5 transition-transform" />
                   </button>
@@ -673,8 +629,12 @@ export default function MapComponent() {
               <div className="absolute right-2 top-2 h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <Activity className="h-4 w-4 text-blue-400" />
               </div>
-              <span className="text-xs text-slate-400 font-medium mb-2">Total Feeders</span>
-              <span className="text-2xl font-bold text-white tracking-tight">{feeders.length}</span>
+              <span className="text-xs text-slate-400 font-medium mb-2">
+                Total Feeders
+              </span>
+              <span className="text-2xl font-bold text-white tracking-tight">
+                {feeders.length}
+              </span>
               <span className="text-[10px] text-slate-500 mt-1 font-semibold">
                 {totalFeederLength.toFixed(1)} km Total Line
               </span>
@@ -683,9 +643,15 @@ export default function MapComponent() {
               <div className="absolute right-2 top-2 h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
                 <MapPin className="h-4 w-4 text-amber-400" />
               </div>
-              <span className="text-xs text-slate-400 font-medium mb-2">Total Towers</span>
-              <span className="text-2xl font-bold text-white tracking-tight">{towers.length}</span>
-              <span className="text-[10px] text-slate-500 mt-1 font-semibold">Point Markers</span>
+              <span className="text-xs text-slate-400 font-medium mb-2">
+                Total Towers
+              </span>
+              <span className="text-2xl font-bold text-white tracking-tight">
+                {towers.length}
+              </span>
+              <span className="text-[10px] text-slate-500 mt-1 font-semibold">
+                Point Markers
+              </span>
             </div>
           </div>
 
@@ -697,10 +663,26 @@ export default function MapComponent() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'dark', label: 'Dark Matter', icon: <Moon className="h-3.5 w-3.5" /> },
-                { id: 'light', label: 'Light Matter', icon: <Sun className="h-3.5 w-3.5" /> },
-                { id: 'osm', label: 'OpenStreetMap', icon: <Layers className="h-3.5 w-3.5" /> },
-                { id: 'satellite', label: 'Satellite', icon: <Compass className="h-3.5 w-3.5" /> }
+                {
+                  id: 'dark',
+                  label: 'Dark Matter',
+                  icon: <Moon className="h-3.5 w-3.5" />,
+                },
+                {
+                  id: 'light',
+                  label: 'Light Matter',
+                  icon: <Sun className="h-3.5 w-3.5" />,
+                },
+                {
+                  id: 'osm',
+                  label: 'OpenStreetMap',
+                  icon: <Layers className="h-3.5 w-3.5" />,
+                },
+                {
+                  id: 'satellite',
+                  label: 'Satellite',
+                  icon: <Compass className="h-3.5 w-3.5" />,
+                },
               ].map((b) => (
                 <button
                   key={b.id}
@@ -733,12 +715,20 @@ export default function MapComponent() {
                     <button
                       onClick={() => setShowFeeders(!showFeeders)}
                       className={`h-5 w-5 rounded flex items-center justify-center transition-colors ${
-                        showFeeders ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'
+                        showFeeders
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-800 text-slate-500'
                       }`}
                     >
-                      {showFeeders ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      {showFeeders ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    <span className="text-xs font-semibold text-slate-200">220kV Feeder Line</span>
+                    <span className="text-xs font-semibold text-slate-200">
+                      220kV Feeder Line
+                    </span>
                   </div>
                   <span className="h-2 w-8 rounded bg-gradient-to-r from-blue-500 to-purple-500" />
                 </div>
@@ -754,7 +744,9 @@ export default function MapComponent() {
                       max="1"
                       step="0.05"
                       value={feederOpacity}
-                      onChange={(e) => setFeederOpacity(parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        setFeederOpacity(parseFloat(e.target.value))
+                      }
                       className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                   </div>
@@ -770,12 +762,20 @@ export default function MapComponent() {
                     <button
                       onClick={() => setShowTowers(!showTowers)}
                       className={`h-5 w-5 rounded flex items-center justify-center transition-colors ${
-                        showTowers ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-500'
+                        showTowers
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-800 text-slate-500'
                       }`}
                     >
-                      {showTowers ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      {showTowers ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    <span className="text-xs font-semibold text-slate-200">220kV Towers</span>
+                    <span className="text-xs font-semibold text-slate-200">
+                      220kV Towers
+                    </span>
                   </div>
                   <span className="h-3.5 w-3.5 rounded-full bg-amber-400 border border-white/40" />
                 </div>
@@ -791,7 +791,9 @@ export default function MapComponent() {
                       max="1"
                       step="0.05"
                       value={towerOpacity}
-                      onChange={(e) => setTowerOpacity(parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        setTowerOpacity(parseFloat(e.target.value))
+                      }
                       className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
                   </div>
@@ -825,7 +827,9 @@ export default function MapComponent() {
                 {/* Visual Accent */}
                 <div
                   className={`absolute top-0 left-0 bottom-0 w-1 ${
-                    selectedFeature.type === 'tower' ? 'bg-amber-400' : 'bg-blue-500'
+                    selectedFeature.type === 'tower'
+                      ? 'bg-amber-400'
+                      : 'bg-blue-500'
                   }`}
                 />
 
@@ -848,12 +852,21 @@ export default function MapComponent() {
 
                 {/* Properties Table */}
                 <div className="pl-2.5 max-h-60 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-                  {Object.entries(selectedFeature.properties).map(([key, val]) => (
-                    <div key={key} className="grid grid-cols-2 gap-2 py-1 border-b border-slate-900/60 text-xs">
-                      <span className="text-slate-400 font-medium capitalize">{key}</span>
-                      <span className="text-slate-200 font-semibold text-right break-words">{val || 'N/A'}</span>
-                    </div>
-                  ))}
+                  {Object.entries(selectedFeature.properties).map(
+                    ([key, val]) => (
+                      <div
+                        key={key}
+                        className="grid grid-cols-2 gap-2 py-1 border-b border-slate-900/60 text-xs"
+                      >
+                        <span className="text-slate-400 font-medium capitalize">
+                          {key}
+                        </span>
+                        <span className="text-slate-200 font-semibold text-right break-words">
+                          {val || 'N/A'}
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -871,7 +884,8 @@ export default function MapComponent() {
               <div className="bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
                 <Database className="h-8 w-8 text-slate-600 mb-3" />
                 <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-[200px]">
-                  Click on any tower or feeder line on the map to view its attributes.
+                  Click on any tower or feeder line on the map to view its
+                  attributes.
                 </p>
               </div>
             )}
@@ -908,42 +922,10 @@ export default function MapComponent() {
         </div>
 
         {/* 4. Loader Overlay */}
-        {loading && (
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center z-50 transition-opacity duration-300">
-            <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center space-y-4">
-              <div className="relative">
-                <div className="h-16 w-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center">
-                  <Loader2 className="h-8 w-8 text-cyan-400 animate-spin" />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-base">Loading WebGIS Data</h3>
-                <p className="text-xs text-slate-400 mt-1 font-medium">{loadingStatus}</p>
-              </div>
-            </div>
-          </div>
-        )}
+        {loading && <LoadingComponent loadingStatus={loadingStatus} />}
 
         {/* 5. Error Overlay */}
-        {error && (
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center z-50">
-            <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center space-y-4">
-              <div className="h-12 w-12 rounded-full bg-red-500/25 flex items-center justify-center text-red-400">
-                <X className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-red-400 font-bold text-base">Data Loading Failed</h3>
-                <p className="text-xs text-slate-400 mt-1 font-medium leading-relaxed">{error}</p>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
-              >
-                Reload Application
-              </button>
-            </div>
-          </div>
-        )}
+        {error && <ErrorComponent error={error} />}
       </div>
     </div>
   )
