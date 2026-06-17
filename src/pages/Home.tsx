@@ -522,7 +522,6 @@ export default function MapComponent() {
             const fType = feature.get('type')
             if (fType === 'photo') {
               const photoData = feature.get('photo')
-              setLightboxPhoto(photoData)
               if (photoData.towerId) {
                 const tower = processedTowers.find(
                   (t) => t.id === photoData.towerId,
@@ -531,6 +530,8 @@ export default function MapComponent() {
                   setSelectedFeature(tower)
                   setSelectedFeatureId(tower.id)
                 }
+              } else {
+                setLightboxPhoto(photoData)
               }
               return
             }
