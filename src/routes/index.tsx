@@ -2,6 +2,7 @@ import MapComponent from '#/pages/Home'
 import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
+  ssr: false,
   beforeLoad: async () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
     try {

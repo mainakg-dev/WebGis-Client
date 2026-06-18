@@ -21,7 +21,6 @@ import {
   Map as MapIcon,
   MapPin,
   Moon,
-  Navigation,
   Search,
   Sliders,
   Sun,
@@ -1274,7 +1273,8 @@ export default function MapComponent() {
               <span>Feature Details</span>
             </div>
             <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl text-center text-xs text-slate-400 leading-relaxed animate-pulse">
-              Click on a tower or feeder line on the map to open the Feature Details modal.
+              Click on a tower or feeder line on the map to open the Feature
+              Details modal.
             </div>
           </div>
         </div>
@@ -1336,12 +1336,16 @@ export default function MapComponent() {
                   <div className="space-y-5">
                     {/* Header */}
                     <div>
-                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                        selectedFeature.type === 'tower'
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      }`}>
-                        {selectedFeature.type === 'tower' ? 'Tower' : 'Feeder Line'}
+                      <span
+                        className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                          selectedFeature.type === 'tower'
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                        }`}
+                      >
+                        {selectedFeature.type === 'tower'
+                          ? 'Tower'
+                          : 'Feeder Line'}
                       </span>
                       <h3 className="font-bold text-lg text-white leading-snug break-words mt-2">
                         {selectedFeature.name}
@@ -1353,12 +1357,22 @@ export default function MapComponent() {
                       {Object.entries(selectedFeature.properties)
                         .filter(([key]) => {
                           const lowerKey = key.toLowerCase()
-                          return !lowerKey.includes('feedername') && !lowerKey.includes('twrnum')
+                          return (
+                            !lowerKey.includes('feedername') &&
+                            !lowerKey.includes('twrnum')
+                          )
                         })
                         .map(([key, val]) => (
-                          <div key={key} className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-800/60 text-xs">
-                            <span className="text-slate-400 font-medium capitalize">{key}</span>
-                            <span className="text-slate-200 font-semibold text-right break-words">{val || 'N/A'}</span>
+                          <div
+                            key={key}
+                            className="grid grid-cols-2 gap-2 py-1.5 border-b border-slate-800/60 text-xs"
+                          >
+                            <span className="text-slate-400 font-medium capitalize">
+                              {key}
+                            </span>
+                            <span className="text-slate-200 font-semibold text-right break-words">
+                              {val || 'N/A'}
+                            </span>
                           </div>
                         ))}
                     </div>
@@ -1396,17 +1410,6 @@ export default function MapComponent() {
                       </div>
                     )}
                   </div>
-
-                  {/* Action Footer */}
-                  <div className="pt-4 border-t border-slate-800/80">
-                    <button
-                      onClick={() => zoomToFeature(selectedFeature)}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl py-2.5 text-xs font-semibold transition-all shadow-md shadow-cyan-500/10"
-                    >
-                      <Navigation className="h-3.5 w-3.5" />
-                      <span>Zoom to Extent</span>
-                    </button>
-                  </div>
                 </div>
 
                 {/* Right Side: Tab Contents (Images) */}
@@ -1417,12 +1420,16 @@ export default function MapComponent() {
                         {activeImgTab === 'rgb' ? (
                           <>
                             <Camera className="h-4 w-4 text-cyan-400" />
-                            <span>RGB Inspection Photos ({rgbPhotos.length})</span>
+                            <span>
+                              RGB Inspection Photos ({rgbPhotos.length})
+                            </span>
                           </>
                         ) : (
                           <>
                             <Flame className="h-4 w-4 text-orange-400" />
-                            <span>Thermal Inspection Photos ({thermalPhotos.length})</span>
+                            <span>
+                              Thermal Inspection Photos ({thermalPhotos.length})
+                            </span>
                           </>
                         )}
                       </h4>
@@ -1573,23 +1580,6 @@ export default function MapComponent() {
                 </div>
 
                 <div className="space-y-2">
-                  {lightboxPhoto.towerId && (
-                    <button
-                      onClick={() => {
-                        const tower = towers.find(
-                          (t) => t.id === lightboxPhoto.towerId,
-                        )
-                        if (tower) {
-                          zoomToFeature(tower)
-                          setLightboxPhoto(null)
-                        }
-                      }}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl py-2.5 text-xs font-semibold transition-all shadow-md shadow-amber-500/10"
-                    >
-                      <Navigation className="h-3.5 w-3.5" />
-                      <span>Zoom to Linked Tower</span>
-                    </button>
-                  )}
                   <a
                     href={lightboxPhoto.url}
                     target="_blank"
