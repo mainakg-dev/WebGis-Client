@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -240,12 +240,6 @@ export function LoginPage() {
               {isSignUp ? 'Sign In' : 'Sign Up'}
             </button>
           </div>
-        </div>
-
-        {/* Demo Credentials Info */}
-        <div className="text-center mt-6 text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
-          Demo Access: <span className="text-slate-400">admin</span> /{' '}
-          <span className="text-slate-400">admin</span>
         </div>
       </div>
     </div>
