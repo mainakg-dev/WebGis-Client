@@ -157,6 +157,7 @@ export default function MapComponent() {
   const [towerReports, setTowerReports] = useState<any[]>([])
   const [fetchingReports, setFetchingReports] = useState<boolean>(false)
   const [uploadingReport, setUploadingReport] = useState<'thermal' | 'findings' | null>(null)
+  const [imageLoading, setImageLoading] = useState<boolean>(false)
 
   // Map reference holders for OpenLayers objects
   const mapInstanceRef = useRef<Map | null>(null)
@@ -959,6 +960,12 @@ export default function MapComponent() {
       setTowerReports([])
     }
   }, [selectedFeature])
+
+  useEffect(() => {
+    if (lightboxPhoto) {
+      setImageLoading(true)
+    }
+  }, [lightboxPhoto])
 
   // Sync photos to the map's photoLayer
   useEffect(() => {
@@ -1798,9 +1805,18 @@ export default function MapComponent() {
             <div className="max-w-4xl w-full flex flex-col md:flex-row gap-6 p-6 bg-slate-900/90 border border-slate-800 rounded-3xl relative shadow-2xl mx-4 backdrop-blur-md">
               {/* Image Container */}
               <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center relative min-h-[300px] max-h-[70vh] border border-slate-850">
+                {imageLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm z-10">
+                    <div className="h-10 w-10 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-3"></div>
+                    <span className="text-xs text-slate-400 font-medium animate-pulse">
+                      Loading original high-res image...
+                    </span>
+                  </div>
+                )}
                 <img
                   src={lightboxPhoto.url}
                   alt={lightboxPhoto.name}
+                  onLoad={() => setImageLoading(false)}
                   className="max-w-full max-h-[70vh] object-contain"
                 />
               </div>
