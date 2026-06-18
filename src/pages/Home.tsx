@@ -48,6 +48,59 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
 // Interface for structured GIS feature properties
+const compressImageToBlob = (
+  file: File,
+  maxWidth = 400,
+  maxHeight = 400,
+  quality = 0.7,
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(img.src)
+      const canvas = document.createElement('canvas')
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height)
+          height = maxHeight
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas context not available'))
+        return
+      }
+
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('Canvas toBlob failed'))
+          }
+        },
+        'image/jpeg',
+        quality,
+      )
+    }
+    img.onerror = (err) => reject(err)
+  })
+}
+
+// Interface for structured GIS feature properties
 interface ParsedFeature {
   id: string
   name: string
@@ -86,10 +139,11 @@ export default function MapComponent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tooltipText, setTooltipText] = useState('')
 
-  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [photoUrls, setPhotoUrls] = useState<{ url: string; thumbnailUrl?: string }[]>([])
   const [photos, setPhotos] = useState<
     {
       url: string
+      thumbnailUrl?: string
       name: string
       lat: number
       lng: number
@@ -578,12 +632,11 @@ export default function MapComponent() {
         })
         if (response.ok) {
           const dbImages = await response.json()
-          const urls = dbImages.map((img: any) => img.url)
           setPhotoUrls((prev) => {
             const newUrls = [...prev]
-            urls.forEach((u: string) => {
-              if (!newUrls.includes(u)) {
-                newUrls.push(u)
+            dbImages.forEach((img: any) => {
+              if (!newUrls.some((u) => u.url === img.url)) {
+                newUrls.push({ url: img.url, thumbnailUrl: img.thumbnailUrl })
               }
             })
             return newUrls
@@ -604,9 +657,9 @@ export default function MapComponent() {
     const loadPhotosMetadata = async () => {
       const loadedPhotos: typeof photos = []
 
-      for (const url of photoUrls) {
+      for (const item of photoUrls) {
         try {
-          const metadata = await fetchImageGps(url)
+          const metadata = await fetchImageGps(item.url)
           if (metadata.success && metadata.lat && metadata.lng) {
             let closestTower: ParsedFeature | null = null
             let minDistance = Infinity
@@ -626,9 +679,9 @@ export default function MapComponent() {
             }
 
             const isWithinBuffer = minDistance <= 50
-            const filename = url.split('/').pop() || ''
+            const filename = item.url.split('/').pop() || ''
             const type =
-              url.includes('/thermal/') || filename.includes('thermal-')
+              item.url.includes('/thermal/') || filename.includes('thermal-')
                 ? 'thermal'
                 : 'rgb'
             const cleanName = filename
@@ -636,7 +689,8 @@ export default function MapComponent() {
               .replace(/^(rgb-|thermal-)/, '')
 
             loadedPhotos.push({
-              url,
+              url: item.url,
+              thumbnailUrl: item.thumbnailUrl,
               name: cleanName,
               lat: metadata.lat!,
               lng: metadata.lng!,
@@ -646,7 +700,7 @@ export default function MapComponent() {
             })
           }
         } catch (err) {
-          console.error('Failed to load metadata for photo:', url, err)
+          console.error('Failed to load metadata for photo:', item.url, err)
         }
       }
 
@@ -704,7 +758,7 @@ export default function MapComponent() {
           throw new Error(`Failed to get presigned URL for ${file.name}`)
         }
 
-        const { presignedUrl, imageUrl } = await res.json()
+        const { presignedUrl, thumbPresignedUrl, imageUrl, thumbnailUrl } = await res.json()
 
         // 2. Upload file directly to S3 via PUT
         const uploadRes = await fetch(presignedUrl, {
@@ -717,6 +771,23 @@ export default function MapComponent() {
 
         if (!uploadRes.ok) {
           throw new Error(`Failed to upload ${file.name} to S3`)
+        }
+
+        // 2.5 Generate and upload thumbnail
+        try {
+          const thumbBlob = await compressImageToBlob(file)
+          const uploadThumbRes = await fetch(thumbPresignedUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'image/jpeg',
+            },
+            body: thumbBlob,
+          })
+          if (!uploadThumbRes.ok) {
+            console.warn(`Failed to upload thumbnail for ${file.name} to S3`)
+          }
+        } catch (thumbErr) {
+          console.warn(`Could not generate or upload thumbnail for ${file.name}:`, thumbErr)
         }
 
         // 3. Extract GPS coordinates locally using ExifReader
@@ -780,6 +851,7 @@ export default function MapComponent() {
         // Add to our reactive photos state
         const newPhoto = {
           url: imageUrl,
+          thumbnailUrl,
           name: file.name,
           lat: lat || 0,
           lng: lng || 0,
@@ -1647,7 +1719,7 @@ export default function MapComponent() {
                                   className="group relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-cyan-500 transition-all shadow-inner focus:outline-none"
                                 >
                                   <img
-                                    src={photo.url}
+                                    src={photo.thumbnailUrl || photo.url}
                                     alt={photo.name}
                                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                                   />
@@ -1677,7 +1749,7 @@ export default function MapComponent() {
                                 className="group relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-orange-500 transition-all shadow-inner focus:outline-none"
                               >
                                 <img
-                                  src={photo.url}
+                                  src={photo.thumbnailUrl || photo.url}
                                   alt={photo.name}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                                 />
