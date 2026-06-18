@@ -103,10 +103,10 @@ export function LoginPage() {
               <Compass className="h-7 w-7 text-white animate-spin duration-[20s]" />
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              GridSpur <span className="text-cyan-400">WebGIS</span>
+              WebGIS <span className="text-cyan-400">Client</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1.5 font-medium">
-              Smart Monitoring & Operations Centre (SMOC)
+              Transmission Line Viewer
             </p>
           </div>
 
