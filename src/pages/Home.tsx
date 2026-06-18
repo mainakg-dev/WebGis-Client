@@ -15,6 +15,7 @@ import {
   Database,
   Eye,
   EyeOff,
+  FileText,
   Flame,
   Info,
   Layers,
@@ -24,6 +25,7 @@ import {
   Search,
   Sliders,
   Sun,
+  Upload,
   X,
 } from 'lucide-react'
 import Feature from 'ol/Feature'
@@ -98,6 +100,9 @@ export default function MapComponent() {
   >([])
   const [lightboxPhoto, setLightboxPhoto] = useState<any | null>(null)
   const [activeImgTab, setActiveImgTab] = useState<'rgb' | 'thermal'>('rgb')
+  const [towerReports, setTowerReports] = useState<any[]>([])
+  const [fetchingReports, setFetchingReports] = useState<boolean>(false)
+  const [uploadingReport, setUploadingReport] = useState<'thermal' | 'findings' | null>(null)
 
   // Map reference holders for OpenLayers objects
   const mapInstanceRef = useRef<Map | null>(null)
@@ -798,6 +803,91 @@ export default function MapComponent() {
     e.target.value = ''
   }
 
+  const fetchReports = async (towerId: string) => {
+    setFetchingReports(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/s3/reports/${encodeURIComponent(towerId)}`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTowerReports(data)
+      } else {
+        setTowerReports([])
+      }
+    } catch (err) {
+      console.error('Error fetching reports:', err)
+      setTowerReports([])
+    } finally {
+      setFetchingReports(false)
+    }
+  }
+
+  const handleReportUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    towerId: string,
+    reportType: 'thermal' | 'findings',
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf') {
+      alert('Only PDF reports are allowed.')
+      e.target.value = ''
+      return
+    }
+
+    setUploadingReport(reportType)
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/s3/report-presigned-url?filename=${encodeURIComponent(
+          file.name,
+        )}&filetype=${encodeURIComponent(file.type)}&towerId=${encodeURIComponent(
+          towerId,
+        )}&type=${encodeURIComponent(reportType)}`,
+        {
+          credentials: 'include',
+        },
+      )
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || `Failed to get presigned URL for report`)
+      }
+
+      const { presignedUrl } = await res.json()
+
+      const uploadRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error(`Failed to upload report to S3`)
+      }
+
+      await fetchReports(towerId)
+      alert(`${reportType === 'thermal' ? 'Thermal' : 'Findings'} report uploaded successfully!`)
+    } catch (err: any) {
+      console.error('Error uploading report:', err)
+      alert(err.message || 'Error uploading report')
+    } finally {
+      setUploadingReport(null)
+      e.target.value = ''
+    }
+  }
+
+  useEffect(() => {
+    if (selectedFeature && selectedFeature.type === 'tower') {
+      fetchReports(selectedFeature.id)
+    } else {
+      setTowerReports([])
+    }
+  }, [selectedFeature])
+
   // Sync photos to the map's photoLayer
   useEffect(() => {
     const source = photoLayerRef.current?.getSource()
@@ -1353,7 +1443,7 @@ export default function MapComponent() {
                     </div>
 
                     {/* Properties List */}
-                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
                       {Object.entries(selectedFeature.properties)
                         .filter(([key]) => {
                           const lowerKey = key.toLowerCase()
@@ -1406,6 +1496,118 @@ export default function MapComponent() {
                             <Flame className="h-4 w-4" />
                             <span>Thermal ({thermalPhotos.length})</span>
                           </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tower Reports (Only for towers) */}
+                    {selectedFeature.type === 'tower' && (
+                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Tower Reports (PDF)
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Thermal Report */}
+                          {(() => {
+                            const report = towerReports.find((r) => r.type === 'thermal')
+                            return (
+                              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-805 flex flex-col justify-between h-20">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <FileText className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] font-semibold text-slate-200 truncate">
+                                      Thermal
+                                    </span>
+                                    <span className="text-[8px] text-slate-500 truncate">
+                                      {report ? 'Available' : 'Missing'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1 mt-1.5">
+                                  {report && (
+                                    <a
+                                      href={report.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex-1 text-center py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[9px] font-bold border border-cyan-500/20 transition-colors"
+                                    >
+                                      View
+                                    </a>
+                                  )}
+                                  <label className="flex-1 text-center py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[9px] font-bold border border-slate-700 cursor-pointer transition-colors flex items-center justify-center gap-1">
+                                    {uploadingReport === 'thermal' ? (
+                                      '...'
+                                    ) : (
+                                      <>
+                                        <Upload className="h-2.5 w-2.5" />
+                                        <span>{report ? 'Update' : 'Upload'}</span>
+                                      </>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept=".pdf"
+                                      className="hidden"
+                                      disabled={uploadingReport !== null}
+                                      onChange={(e) =>
+                                        handleReportUpload(e, selectedFeature.id, 'thermal')
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Findings Report */}
+                          {(() => {
+                            const report = towerReports.find((r) => r.type === 'findings')
+                            return (
+                              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-805 flex flex-col justify-between h-20">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <FileText className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] font-semibold text-slate-200 truncate">
+                                      Findings
+                                    </span>
+                                    <span className="text-[8px] text-slate-500 truncate">
+                                      {report ? 'Available' : 'Missing'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1 mt-1.5">
+                                  {report && (
+                                    <a
+                                      href={report.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex-1 text-center py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[9px] font-bold border border-cyan-500/20 transition-colors"
+                                    >
+                                      View
+                                    </a>
+                                  )}
+                                  <label className="flex-1 text-center py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[9px] font-bold border border-slate-700 cursor-pointer transition-colors flex items-center justify-center gap-1">
+                                    {uploadingReport === 'findings' ? (
+                                      '...'
+                                    ) : (
+                                      <>
+                                        <Upload className="h-2.5 w-2.5" />
+                                        <span>{report ? 'Update' : 'Upload'}</span>
+                                      </>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept=".pdf"
+                                      className="hidden"
+                                      disabled={uploadingReport !== null}
+                                      onChange={(e) =>
+                                        handleReportUpload(e, selectedFeature.id, 'findings')
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                     )}
