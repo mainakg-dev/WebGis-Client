@@ -18,7 +18,7 @@ export const Header = () => {
   }
 
   return (
-    <div className="dark p-5 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center justify-between text-slate-100">
+    <div className="p-5 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
           <Compass className="h-5 w-5 text-white animate-pulse" />

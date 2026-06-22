@@ -225,21 +225,6 @@ export function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Toggle Link */}
-          <div className="text-center mt-6 text-xs text-slate-400">
-            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp)
-                setError(null)
-              }}
-              className="text-cyan-400 font-semibold hover:underline"
-            >
-              {isSignUp ? 'Sign In' : 'Sign Up'}
-            </button>
-          </div>
         </div>
       </div>
     </div>

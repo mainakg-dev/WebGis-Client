@@ -7,48 +7,46 @@ export function Footer() {
   // Translations
   const t = {
     en: {
-      aboutTitle: 'About OPTCL',
+      aboutTitle: 'About PTCL',
       aboutDesc:
-        'Odisha Power Transmission Corporation Limited (OPTCL) is one of the largest transmission utilities in the country, transmitting power across the state of Odisha safely and efficiently.',
+        'Power Transmission Corporation Limited (PTCL) is one of the largest transmission utilities in the country, transmitting power across the grid safely and efficiently.',
       linksTitle: 'Quick Links',
       contactTitle: 'Contact Us',
       addressLabel: 'Registered Office:',
-      addressVal: 'Janpath, Bhubaneswar, Odisha, Pin-751022, India',
+      addressVal: 'Grid Headquarters, New Delhi, India',
       phoneLabel: 'Phone:',
       emailLabel: 'Email:',
       copyright:
-        'Odisha Power Transmission Corporation Limited © 2026. All rights reserved. Government of Odisha.',
-      designedBy: 'Designed and Maintained by OPTCL IT & GIS Team',
+        'Power Transmission Corporation Limited © 2026. All rights reserved. Government Undertaking.',
+      designedBy: 'Designed and Maintained by IT & GIS Team',
       legalTitle: 'Legal & Info',
       terms: 'Terms of Use',
       privacy: 'Privacy Policy',
       disclaimer: 'Disclaimer',
     },
-    or: {
-      aboutTitle: 'ଓପିଟିସିଏଲ୍‌ ବିଷୟରେ',
+    hi: {
+      aboutTitle: 'पीटीसीएल के बारे में',
       aboutDesc:
-        'ଓଡ଼ିଶା ପାୱାର ଟ୍ରାନ୍ସମିସନ କର୍ପୋରେସନ ଲିମିଟେଡ୍ (ଓପିଟିସିଏଲ୍‌) ହେଉଛି ଦେଶର ଅନ୍ୟତମ ବୃହତ୍ତମ ବିଦ୍ୟୁତ ସଞ୍ଚାରଣ ସଂସ୍ଥା, ଯାହା ସମଗ୍ର ଓଡ଼ିଶାରେ ବିଦ୍ୟୁତ ସଞ୍ଚାରଣ ସୁରକ୍ଷିତ ଏବଂ ଦକ୍ଷତାର ସହିତ କରିଥାଏ।',
-      linksTitle: 'ମୁଖ୍ୟ ଲିଙ୍କ୍',
-      contactTitle: 'ଯୋଗାଯୋଗ',
-      addressLabel: 'ପଞ୍ଜୀକୃତ କାର୍ଯ୍ୟାଳୟ:',
-      addressVal: 'ଜନପଥ, ଭୁବନେଶ୍ୱର, ଓଡ଼ିଶା, ପିନ୍-୭୫୧୦୨୨, ଭାରତ',
-      phoneLabel: 'ଫୋନ୍:',
-      emailLabel: 'ଇମେଲ୍:',
+        'पावर ट्रांसमिशन कॉर्पोरेशन लिमिटेड (पीटीसीएल) देश के सबसे बड़े बिजली पारेषण उपक्रमों में से एक है, जो ग्रिड में सुरक्षित और कुशलतापूर्वक बिजली का पारेषण करता है।',
+      linksTitle: 'त्वरित संपर्क',
+      contactTitle: 'संपर्क करें',
+      addressLabel: 'पंजीकृत कार्यालय:',
+      addressVal: 'ग्रिड मुख्यालय, नई दिल्ली, भारत',
+      phoneLabel: 'फ़ोन:',
+      emailLabel: 'ईमेल:',
       copyright:
-        'ଓଡ଼ିଶା ପାୱାର ଟ୍ରାନ୍ସମିସନ କର୍ପୋରେସନ ଲିମିଟେଡ୍ © ୨୦୨୬। ସର୍ବାଧିକାର ସୁରକ୍ଷିତ। ଓଡ଼ିଶା ସରକାର।',
-      designedBy: 'ଓପିଟିସିଏଲ୍‌ ଆଇଟି ଏବଂ ଜିଆଇଏସ୍ ଟିମ୍ ଦ୍ୱାରା ନିର୍ମିତ ଓ ପରିଚାଳିତ',
-      legalTitle: 'ଆଇନଗତ ଓ ସୂଚନା',
-      terms: 'ବ୍ୟବହାର ନିୟମାବଳୀ',
-      privacy: 'ଗୋପନୀୟତା ନୀତି',
-      disclaimer: 'ଦାବି ତ୍ୟାଗ',
+        'पावर ट्रांसमिशन कॉर्पोरेशन लिमिटेड © 2026। सर्वाधिकार सुरक्षित। सरकारी उपक्रम।',
+      designedBy: 'आईटी और जीआईएस टीम द्वारा डिजाइन और रखरखाव',
+      legalTitle: 'कानूनी और सूचना',
+      terms: 'उपयोग की शर्तें',
+      privacy: 'गोपनीयता नीति',
     },
   }[language]
 
   const quickLinks = [
-    { name: 'OPTCL Portal', url: 'https://www.optcl.co.in' },
     { name: 'Ministry of Power (GoI)', url: 'https://powermin.gov.in' },
     { name: 'GRID-INDIA', url: 'https://grid-india.in' },
-    { name: 'OERC Odisha', url: 'https://www.oerc.gov.in' },
+    { name: 'CERC India', url: 'https://cercind.gov.in' },
     { name: 'National Power Portal', url: 'https://npp.gov.in' },
   ]
 
@@ -90,10 +88,10 @@ export function Footer() {
             </svg>
             <div>
               <h2 className="text-slate-700 dark:text-slate-300 font-extrabold tracking-wide text-md">
-                ODISHA POWER TRANSMISSION CORPORATION LIMITED
+                POWER TRANSMISSION CORPORATION LIMITED
               </h2>
               <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mt-0.5">
-                Lifeline of Odisha | State Transmission Utility (STU)
+                Lifeline of Grid | State Transmission Utility (STU)
               </p>
             </div>
           </div>
@@ -228,10 +226,10 @@ export function Footer() {
                     {t.emailLabel}
                   </span>
                   <a
-                    href="mailto:info@optcl.co.in"
+                    href="mailto:info@ptcl.gov.in"
                     className=" transition-colors"
                   >
-                    info@optcl.co.in
+                    info@ptcl.gov.in
                   </a>
                 </div>
               </li>

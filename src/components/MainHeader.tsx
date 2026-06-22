@@ -62,17 +62,17 @@ export function MainHeader() {
       contact: 'Contact Us',
       signIn: 'Sign In / Register',
       signOut: 'Sign Out',
-      deptName: 'Odisha Power Transmission Corporation Limited',
-      govtName: 'Government of Odisha Undertaking',
+      deptName: 'State Power Transmission Corporation Limited',
+      govtName: 'A Government Undertaking',
     },
-    or: {
-      home: 'ମୂଳ ପୃଷ୍ଠା',
-      gisPortal: 'ଜିଆଇଏସ୍ ପୋର୍ଟାଲ',
-      contact: 'ଯୋଗାଯୋଗ',
-      signIn: 'ଲଗ୍-ଇନ୍ / ପଞ୍ଜୀକରଣ',
-      signOut: 'ଲଗ୍ ଆଉଟ୍',
-      deptName: 'ଓଡ଼ିଶା ପାୱାର ଟ୍ରାନ୍ସମିସନ କର୍ପୋରେସନ ଲିମିଟେଡ୍',
-      govtName: 'ଓଡ଼ିଶା ସରକାରଙ୍କ ଏକ ଉଦ୍ୟୋଗ',
+    hi: {
+      home: 'मुख्य पृष्ठ',
+      gisPortal: 'जीआईएस पोर्टल',
+      contact: 'संपर्क करें',
+      signIn: 'लॉग इन / पंजीकरण',
+      signOut: 'लॉग आउट',
+      deptName: 'राज्य विद्युत पारेषण निगम लिमिटेड',
+      govtName: 'एक सरकारी उपक्रम',
     },
   }[language]
 
@@ -106,21 +106,21 @@ export function MainHeader() {
           </div>
           <div className="flex items-center gap-3 font-medium">
             <a
-              href="https://odisha.gov.in"
+              href="https://india.gov.in"
               target="_blank"
               rel="noreferrer"
               className="hover:text-cyan-500 transition-colors"
             >
-              Odisha Gov Portal
+              National Portal of India
             </a>
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <a
-              href="https://www.optcl.co.in"
+              href="https://powermin.gov.in"
               target="_blank"
               rel="noreferrer"
               className="hover:text-cyan-500 transition-colors"
             >
-              OPTCL Official Website
+              Ministry of Power
             </a>
           </div>
         </div>
@@ -131,7 +131,7 @@ export function MainHeader() {
         <div className="flex items-center justify-between h-20">
           {/* Left Area: Logos and Title */}
           <div className="flex items-center gap-3">
-            {/* OPTCL Logo SVG */}
+            {/* PTCL Logo SVG */}
             <Link to="/" className="flex items-center gap-3 group">
               <svg
                 className="w-12 h-12 text-blue-600 dark:text-cyan-400 group-hover:scale-105 transition-transform duration-300"
@@ -180,7 +180,7 @@ export function MainHeader() {
               </svg>
               <div className="hidden md:flex flex-col">
                 <span className="font-extrabold text-slate-800 dark:text-white tracking-tight leading-tight text-lg group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
-                  OPTCL
+                  PTCL
                 </span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold max-w-[200px] leading-tight">
                   {t.deptName}
@@ -188,7 +188,7 @@ export function MainHeader() {
               </div>
             </Link>
 
-            {/* Separator line between OPTCL and Digital India */}
+            {/* Separator line between PTCL and Digital India */}
             <div className="h-10 w-[1.5px] bg-slate-200 dark:bg-slate-800 hidden sm:block mx-1" />
 
             {/* Digital India Logo SVG */}
@@ -274,12 +274,12 @@ export function MainHeader() {
 
             {/* Language Change Trigger */}
             <button
-              onClick={() => setLanguage(language === 'en' ? 'or' : 'en')}
+              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 active:scale-95 transition-all"
               title="Change Language"
             >
               <Globe className="w-3.5 h-3.5 text-slate-500" />
-              <span>{language === 'en' ? 'ଓଡ଼ିଆ' : 'English'}</span>
+              <span>{language === 'en' ? 'हिन्दी' : 'English'}</span>
             </button>
 
             {/* Theme Change Trigger */}
@@ -344,10 +344,10 @@ export function MainHeader() {
 
             {/* Language Change Trigger Mobile */}
             <button
-              onClick={() => setLanguage(language === 'en' ? 'or' : 'en')}
+              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
               className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all"
             >
-              {language === 'en' ? 'OR' : 'EN'}
+              {language === 'en' ? 'HI' : 'EN'}
             </button>
 
             <button
