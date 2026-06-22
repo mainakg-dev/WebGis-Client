@@ -1,6 +1,6 @@
+import ExifReader from 'exifreader'
 import JSZip from 'jszip'
 import KML from 'ol/format/KML'
-import ExifReader from 'exifreader'
 
 // Load KMZ file: fetch, unzip, extract KML & base64 images, parse features
 export const loadKmzFeatures = async (url: string) => {
@@ -146,4 +146,56 @@ export const calculateHaversineDistance = (
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
   return R * c
+}
+
+export const compressImageToBlob = (
+  file: File,
+  maxWidth = 400,
+  maxHeight = 400,
+  quality = 0.7,
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(img.src)
+      const canvas = document.createElement('canvas')
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height)
+          height = maxHeight
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas context not available'))
+        return
+      }
+
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('Canvas toBlob failed'))
+          }
+        },
+        'image/jpeg',
+        quality,
+      )
+    }
+    img.onerror = (err) => reject(err)
+  })
 }

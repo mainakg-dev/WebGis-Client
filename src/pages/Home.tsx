@@ -3,6 +3,7 @@ import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
 import {
   calculateHaversineDistance,
+  compressImageToBlob,
   fetchImageGps,
   loadKmzFeatures,
 } from '#/utility'
@@ -48,57 +49,6 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
 // Interface for structured GIS feature properties
-const compressImageToBlob = (
-  file: File,
-  maxWidth = 400,
-  maxHeight = 400,
-  quality = 0.7,
-): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.src = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(img.src)
-      const canvas = document.createElement('canvas')
-      let width = img.width
-      let height = img.height
-
-      if (width > height) {
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width)
-          width = maxWidth
-        }
-      } else {
-        if (height > maxHeight) {
-          width = Math.round((width * maxHeight) / height)
-          height = maxHeight
-        }
-      }
-
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        reject(new Error('Canvas context not available'))
-        return
-      }
-
-      ctx.drawImage(img, 0, 0, width, height)
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error('Canvas toBlob failed'))
-          }
-        },
-        'image/jpeg',
-        quality,
-      )
-    }
-    img.onerror = (err) => reject(err)
-  })
-}
 
 // Interface for structured GIS feature properties
 interface ParsedFeature {
@@ -139,7 +89,9 @@ export default function MapComponent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tooltipText, setTooltipText] = useState('')
 
-  const [photoUrls, setPhotoUrls] = useState<{ url: string; thumbnailUrl?: string }[]>([])
+  const [photoUrls, setPhotoUrls] = useState<
+    { url: string; thumbnailUrl?: string }[]
+  >([])
   const [photos, setPhotos] = useState<
     {
       url: string
@@ -156,7 +108,9 @@ export default function MapComponent() {
   const [activeImgTab, setActiveImgTab] = useState<'rgb' | 'thermal'>('rgb')
   const [towerReports, setTowerReports] = useState<any[]>([])
   const [fetchingReports, setFetchingReports] = useState<boolean>(false)
-  const [uploadingReport, setUploadingReport] = useState<'thermal' | 'findings' | null>(null)
+  const [uploadingReport, setUploadingReport] = useState<
+    'thermal' | 'findings' | null
+  >(null)
   const [imageLoading, setImageLoading] = useState<boolean>(false)
 
   // Map reference holders for OpenLayers objects
@@ -654,7 +608,7 @@ export default function MapComponent() {
   // Load photo metadata and associate with towers within 50m buffer
   useEffect(() => {
     if (towers.length === 0) return
-
+    console.log(towers.length, 'length')
     const loadPhotosMetadata = async () => {
       const loadedPhotos: typeof photos = []
 
@@ -759,7 +713,8 @@ export default function MapComponent() {
           throw new Error(`Failed to get presigned URL for ${file.name}`)
         }
 
-        const { presignedUrl, thumbPresignedUrl, imageUrl, thumbnailUrl } = await res.json()
+        const { presignedUrl, thumbPresignedUrl, imageUrl, thumbnailUrl } =
+          await res.json()
 
         // 2. Upload file directly to S3 via PUT
         const uploadRes = await fetch(presignedUrl, {
@@ -788,7 +743,10 @@ export default function MapComponent() {
             console.warn(`Failed to upload thumbnail for ${file.name} to S3`)
           }
         } catch (thumbErr) {
-          console.warn(`Could not generate or upload thumbnail for ${file.name}:`, thumbErr)
+          console.warn(
+            `Could not generate or upload thumbnail for ${file.name}:`,
+            thumbErr,
+          )
         }
 
         // 3. Extract GPS coordinates locally using ExifReader
@@ -879,9 +837,12 @@ export default function MapComponent() {
   const fetchReports = async (towerId: string) => {
     setFetchingReports(true)
     try {
-      const res = await fetch(`${API_BASE_URL}/s3/reports/${encodeURIComponent(towerId)}`, {
-        credentials: 'include',
-      })
+      const res = await fetch(
+        `${API_BASE_URL}/s3/reports/${encodeURIComponent(towerId)}`,
+        {
+          credentials: 'include',
+        },
+      )
       if (res.ok) {
         const data = await res.json()
         setTowerReports(data)
@@ -925,7 +886,9 @@ export default function MapComponent() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.message || `Failed to get presigned URL for report`)
+        throw new Error(
+          errData.message || `Failed to get presigned URL for report`,
+        )
       }
 
       const { presignedUrl } = await res.json()
@@ -943,7 +906,9 @@ export default function MapComponent() {
       }
 
       await fetchReports(towerId)
-      alert(`${reportType === 'thermal' ? 'Thermal' : 'Findings'} report uploaded successfully!`)
+      alert(
+        `${reportType === 'thermal' ? 'Thermal' : 'Findings'} report uploaded successfully!`,
+      )
     } catch (err: any) {
       console.error('Error uploading report:', err)
       alert(err.message || 'Error uploading report')
@@ -1588,7 +1553,9 @@ export default function MapComponent() {
                         <div className="grid grid-cols-2 gap-2">
                           {/* Thermal Report */}
                           {(() => {
-                            const report = towerReports.find((r) => r.type === 'thermal')
+                            const report = towerReports.find(
+                              (r) => r.type === 'thermal',
+                            )
                             return (
                               <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-805 flex flex-col justify-between h-20">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1619,7 +1586,9 @@ export default function MapComponent() {
                                     ) : (
                                       <>
                                         <Upload className="h-2.5 w-2.5" />
-                                        <span>{report ? 'Update' : 'Upload'}</span>
+                                        <span>
+                                          {report ? 'Update' : 'Upload'}
+                                        </span>
                                       </>
                                     )}
                                     <input
@@ -1628,7 +1597,11 @@ export default function MapComponent() {
                                       className="hidden"
                                       disabled={uploadingReport !== null}
                                       onChange={(e) =>
-                                        handleReportUpload(e, selectedFeature.id, 'thermal')
+                                        handleReportUpload(
+                                          e,
+                                          selectedFeature.id,
+                                          'thermal',
+                                        )
                                       }
                                     />
                                   </label>
@@ -1639,7 +1612,9 @@ export default function MapComponent() {
 
                           {/* Findings Report */}
                           {(() => {
-                            const report = towerReports.find((r) => r.type === 'findings')
+                            const report = towerReports.find(
+                              (r) => r.type === 'findings',
+                            )
                             return (
                               <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-805 flex flex-col justify-between h-20">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1670,7 +1645,9 @@ export default function MapComponent() {
                                     ) : (
                                       <>
                                         <Upload className="h-2.5 w-2.5" />
-                                        <span>{report ? 'Update' : 'Upload'}</span>
+                                        <span>
+                                          {report ? 'Update' : 'Upload'}
+                                        </span>
                                       </>
                                     )}
                                     <input
@@ -1679,7 +1656,11 @@ export default function MapComponent() {
                                       className="hidden"
                                       disabled={uploadingReport !== null}
                                       onChange={(e) =>
-                                        handleReportUpload(e, selectedFeature.id, 'findings')
+                                        handleReportUpload(
+                                          e,
+                                          selectedFeature.id,
+                                          'findings',
+                                        )
                                       }
                                     />
                                   </label>
