@@ -20,9 +20,11 @@ import {
   Flame,
   Info,
   Layers,
-  Map as MapIcon,
   MapPin,
+  Maximize2,
+  Minus,
   Moon,
+  Plus,
   Search,
   Sliders,
   Sun,
@@ -982,6 +984,43 @@ export default function MapComponent() {
     }
   }, [showFeeders, feederOpacity])
 
+  // Zoom In map
+  const handleZoomIn = () => {
+    const map = mapInstanceRef.current
+    if (map) {
+      const view = map.getView()
+      const zoom = view.getZoom()
+      if (zoom !== undefined) {
+        view.animate({ zoom: zoom + 1, duration: 250 })
+      }
+    }
+  }
+
+  // Zoom Out map
+  const handleZoomOut = () => {
+    const map = mapInstanceRef.current
+    if (map) {
+      const view = map.getView()
+      const zoom = view.getZoom()
+      if (zoom !== undefined) {
+        view.animate({ zoom: zoom - 1, duration: 250 })
+      }
+    }
+  }
+
+  // Reset View to original coordinates/zoom
+  const handleResetView = () => {
+    const map = mapInstanceRef.current
+    if (map) {
+      const view = map.getView()
+      view.animate({
+        center: [9541000, 2306000],
+        zoom: 11,
+        duration: 500,
+      })
+    }
+  }
+
   // Center/Zoom onto a feature
   const zoomToFeature = (feat: ParsedFeature) => {
     const map = mapInstanceRef.current
@@ -1137,51 +1176,6 @@ export default function MapComponent() {
               <span className="text-[10px] text-slate-500 mt-1 font-semibold">
                 Point Markers
               </span>
-            </div>
-          </div>
-
-          {/* C. Basemaps Selection */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
-              <MapIcon className="h-4 w-4 text-cyan-400" />
-              <span>Basemaps</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                {
-                  id: 'dark',
-                  label: 'Dark Matter',
-                  icon: <Moon className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: 'light',
-                  label: 'Light Matter',
-                  icon: <Sun className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: 'osm',
-                  label: 'OpenStreetMap',
-                  icon: <Layers className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: 'satellite',
-                  label: 'Satellite',
-                  icon: <Compass className="h-3.5 w-3.5" />,
-                },
-              ].map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => setBasemap(b.id as any)}
-                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-medium border transition-all ${
-                    basemap === b.id
-                      ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-md shadow-cyan-500/5'
-                      : 'bg-slate-950 border-slate-800/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                  }`}
-                >
-                  {b.icon}
-                  <span>{b.label}</span>
-                </button>
-              ))}
             </div>
           </div>
 
@@ -1429,6 +1423,114 @@ export default function MapComponent() {
             <span className="text-xs font-semibold text-slate-200">
               220kV Mendhasal - Bidanasi DC Line
             </span>
+          </div>
+        </div>
+
+        {/* Map Controls Floating Navigation */}
+        <div className="absolute top-5 right-5 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur-md border border-slate-800/80 p-1.5 rounded-2xl shadow-2xl pointer-events-auto">
+          {/* Navigation Controls: Zoom & Fit */}
+          <div className="flex items-center gap-1 px-1">
+            <button
+              onClick={handleZoomIn}
+              title="Zoom In"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleZoomOut}
+              title="Zoom Out"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all active:scale-95"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleResetView}
+              title="Reset View"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all active:scale-95"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="w-px h-6 bg-slate-800" />
+
+          {/* Basemaps Toggles */}
+          <div className="flex items-center gap-1 px-1">
+            {[
+              {
+                id: 'dark',
+                label: 'Dark',
+                icon: <Moon className="h-3.5 w-3.5" />,
+              },
+              {
+                id: 'light',
+                label: 'Light',
+                icon: <Sun className="h-3.5 w-3.5" />,
+              },
+              {
+                id: 'osm',
+                label: 'OSM',
+                icon: <Layers className="h-3.5 w-3.5" />,
+              },
+              {
+                id: 'satellite',
+                label: 'Satellite',
+                icon: <Compass className="h-3.5 w-3.5" />,
+              },
+            ].map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setBasemap(b.id as any)}
+                title={`Switch to ${b.label} basemap`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  basemap === b.id
+                    ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-md shadow-cyan-500/5'
+                    : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                {b.icon}
+                <span className="hidden sm:inline">{b.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-6 bg-slate-800" />
+
+          {/* Layer Visibility Toggles */}
+          <div className="flex items-center gap-1 px-1">
+            <button
+              onClick={() => setShowFeeders(!showFeeders)}
+              title="Toggle 220kV Feeder Lines"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                showFeeders
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                  : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/50'
+              }`}
+            >
+              {showFeeders ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">Feeders</span>
+            </button>
+            <button
+              onClick={() => setShowTowers(!showTowers)}
+              title="Toggle Transmission Towers"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                showTowers
+                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                  : 'bg-transparent border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/50'
+              }`}
+            >
+              {showTowers ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">Towers</span>
+            </button>
           </div>
         </div>
 
