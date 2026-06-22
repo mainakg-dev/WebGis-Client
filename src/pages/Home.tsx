@@ -608,7 +608,6 @@ export default function MapComponent() {
   // Load photo metadata and associate with towers within 50m buffer
   useEffect(() => {
     if (towers.length === 0) return
-    console.log(towers.length, 'length')
     const loadPhotosMetadata = async () => {
       const loadedPhotos: typeof photos = []
 

@@ -75,7 +75,7 @@ export function LoginPage() {
       if (rememberMe) {
         localStorage.setItem('rememberedUser', username)
       }
-      navigate({ to: '/' })
+      navigate({ to: '/map' })
     } catch (err: any) {
       setError(err.message || 'Authentication failed.')
       setLoading(false)
