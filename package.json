@@ -24,6 +24,7 @@
     "@tanstack/react-router-ssr-query": "latest",
     "@tanstack/react-start": "latest",
     "@tanstack/router-plugin": "^1.132.0",
+    "@vidstack/react": "^1.15.6",
     "exifreader": "^4.41.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.545.0",

@@ -2,6 +2,7 @@ import CustomToast from '#/components/CustomToast'
 import { ErrorComponent } from '#/components/Error'
 import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
+import { VideoController } from '#/components/VideoController'
 import {
   calculateHaversineDistance,
   compressImageToBlob,
@@ -1561,7 +1562,9 @@ export default function MapComponent() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
       {/* 1. Glassmorphic Sidebar */}
-      <div className={`transition-all duration-300 ${sidebarOpen ? 'w-96 border-r border-slate-800' : 'w-0 border-r-0'} flex flex-col bg-slate-900 h-full shadow-2xl z-10 overflow-hidden shrink-0`}>
+      <div
+        className={`transition-all duration-300 ${sidebarOpen ? 'w-96 border-r border-slate-800' : 'w-0 border-r-0'} flex flex-col bg-slate-900 h-full shadow-2xl z-10 overflow-hidden shrink-0`}
+      >
         {/* Header */}
         <Header onCollapse={() => setSidebarOpen(false)} />
 
@@ -2031,7 +2034,7 @@ export default function MapComponent() {
         {/* 5.5 Feature Details Modal */}
         {selectedFeature && (
           <div className="fixed inset-0 z-45 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-850 rounded-3xl w-full max-w-4xl h-[600px] flex flex-col overflow-hidden shadow-2xl relative">
+            <div className="bg-slate-900 border border-slate-850 rounded-3xl w-full max-w-4xl h-[720px] flex flex-col overflow-hidden shadow-2xl relative">
               {/* Close Button */}
               <button
                 onClick={() => {
@@ -2536,15 +2539,7 @@ export default function MapComponent() {
                             </span>
                           </div>
                           <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 min-h-0">
-                            <video
-                              key={spanVideo.url}
-                              controls
-                              className="w-full h-full object-contain"
-                              poster={spanVideo.thumbnailUrl || undefined}
-                            >
-                              <source src={spanVideo.url} />
-                              Your browser does not support the video element.
-                            </video>
+                            <VideoController url={spanVideo.url} />
                           </div>
                           {/* Replace existing video */}
                           <div className="flex items-center gap-3 mt-3 shrink-0">

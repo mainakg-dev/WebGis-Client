@@ -1,5 +1,5 @@
-
-@import "tailwindcss";
+@import 'tailwindcss';
+@plugin "@vidstack/react/tailwind.cjs";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -29,4 +29,3 @@ body {
 ::view-transition-new(root) {
   z-index: 9999;
 }
-
