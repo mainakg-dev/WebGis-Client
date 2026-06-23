@@ -1,3 +1,4 @@
+import CustomToast from '#/components/CustomToast'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Compass,
@@ -150,9 +151,12 @@ export function LoginPage() {
                     href="#forgot"
                     onClick={(e) => {
                       e.preventDefault()
-                      alert(
-                        'Please contact the SMOC administrator to reset your credentials.',
-                      )
+                      CustomToast({
+                        type: 'failure',
+                        headline: 'Error!',
+                        description:
+                          'Please contact the administrator to reset your credentials.',
+                      })
                     }}
                     className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
                   >

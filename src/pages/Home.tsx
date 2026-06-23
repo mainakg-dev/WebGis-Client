@@ -1,3 +1,4 @@
+import CustomToast from '#/components/CustomToast'
 import { ErrorComponent } from '#/components/Error'
 import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
@@ -23,6 +24,7 @@ import {
   Layers,
   MapPin,
   Maximize2,
+  MessageSquare,
   Minus,
   Moon,
   Play,
@@ -118,13 +120,14 @@ export default function MapComponent() {
   >(null)
   const [imageLoading, setImageLoading] = useState<boolean>(false)
 
+  // Sidebar toggle state
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
   // Span video state
   const [activeDetailTab, setActiveDetailTab] = useState<
-    'info' | 'videos' | 'tower-shorts'
+    'info' | 'videos' | 'tower-shorts' | 'remarks'
   >('info')
-  const [activeVideoTab, setActiveVideoTab] = useState<'rgb' | 'thermal'>(
-    'rgb',
-  )
+  const [activeVideoTab, setActiveVideoTab] = useState<'rgb' | 'thermal'>('rgb')
   const [selectedSpan, setSelectedSpan] = useState<{
     fromId: string
     toId: string
@@ -150,6 +153,12 @@ export default function MapComponent() {
   } | null>(null)
   const [fetchingTowerVideo, setFetchingTowerVideo] = useState(false)
   const [uploadingTowerVideo, setUploadingTowerVideo] = useState(false)
+
+  // Tower remarks state
+  const [remarks, setRemarks] = useState<any[]>([])
+  const [newRemarkText, setNewRemarkText] = useState('')
+  const [fetchingRemarks, setFetchingRemarks] = useState(false)
+  const [submittingRemark, setSubmittingRemark] = useState(false)
 
   // Map reference holders for OpenLayers objects
   const mapInstanceRef = useRef<Map | null>(null)
@@ -722,7 +731,12 @@ export default function MapComponent() {
     )
 
     if (imageFiles.length === 0) {
-      alert('No valid image files found in the selected folder.')
+      CustomToast({
+        type: 'failure',
+        headline: 'Not Found',
+        description: 'No valid image files found in the selected folder.',
+      })
+
       setLoading(false)
       return
     }
@@ -865,9 +879,13 @@ export default function MapComponent() {
     }
 
     setLoading(false)
-    alert(
-      `Folder upload completed.\nSuccessfully uploaded: ${uploadedCount}\nErrors: ${errorCount}`,
-    )
+
+    CustomToast({
+      type: 'success',
+      headline: 'Folder uploaded successfully!',
+      description: `Folder upload completed.\nSuccessfully uploaded: ${uploadedCount}\nErrors: ${errorCount}`,
+    })
+
     e.target.value = ''
   }
 
@@ -903,7 +921,11 @@ export default function MapComponent() {
     if (!file) return
 
     if (file.type !== 'application/pdf') {
-      alert('Only PDF reports are allowed.')
+      CustomToast({
+        type: 'failure',
+        headline: 'Unsupported Format',
+        description: 'Only .pdf formats are allowed.',
+      })
       e.target.value = ''
       return
     }
@@ -943,12 +965,20 @@ export default function MapComponent() {
       }
 
       await fetchReports(towerId)
-      alert(
-        `${reportType === 'thermal' ? 'Thermal' : 'Findings'} report uploaded successfully!`,
-      )
+
+      CustomToast({
+        type: 'success',
+        headline: 'Report uploaded successfully!',
+        description: `${reportType === 'thermal' ? 'Thermal' : 'Findings'} report uploaded successfully!`,
+      })
     } catch (err: any) {
       console.error('Error uploading report:', err)
-      alert(err.message || 'Error uploading report')
+
+      CustomToast({
+        type: 'failure',
+        headline: 'Error!',
+        description: err.message || 'Error uploading report',
+      })
     } finally {
       setUploadingReport(null)
       e.target.value = ''
@@ -971,6 +1001,8 @@ export default function MapComponent() {
     setSelectedSpan(null)
     setSpanVideo(null)
     setTowerVideo(null)
+    setRemarks([])
+    setNewRemarkText('')
   }, [selectedFeature])
 
   // Get adjacent towers for the current selection
@@ -997,7 +1029,11 @@ export default function MapComponent() {
   }
 
   // Fetch span video
-  const fetchSpanVideos = async (fromId: string, toId: string, type: string) => {
+  const fetchSpanVideos = async (
+    fromId: string,
+    toId: string,
+    type: string,
+  ) => {
     setFetchingVideo(true)
     setSpanVideo(null)
     try {
@@ -1074,7 +1110,11 @@ export default function MapComponent() {
 
     const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime']
     if (!allowedTypes.includes(file.type)) {
-      alert('Only .mp4, .webm, and .mov formats are allowed.')
+      CustomToast({
+        type: 'failure',
+        headline: 'Unsupported Format',
+        description: 'Only .mp4, .webm, and .mov formats are allowed.',
+      })
       e.target.value = ''
       return
     }
@@ -1127,10 +1167,18 @@ export default function MapComponent() {
 
       // 4. Refresh the span video
       await fetchSpanVideos(fromId, toId, type)
-      alert('Video uploaded successfully!')
+      CustomToast({
+        type: 'success',
+        headline: 'Video uploaded successfully!',
+        description: '',
+      })
     } catch (err: any) {
       console.error('Error uploading video:', err)
-      alert(err.message || 'Error uploading video')
+      CustomToast({
+        type: 'failure',
+        headline: 'Error!',
+        description: err.message || 'Error uploading video',
+      })
     } finally {
       setUploadingVideo(false)
       e.target.value = ''
@@ -1178,16 +1226,13 @@ export default function MapComponent() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const MAX_SIZE = 500 * 1024 * 1024
-    if (file.size > MAX_SIZE) {
-      alert('Video file must be under 500MB.')
-      e.target.value = ''
-      return
-    }
-
     const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime']
     if (!allowedTypes.includes(file.type)) {
-      alert('Only .mp4, .webm, and .mov formats are allowed.')
+      CustomToast({
+        type: 'failure',
+        headline: 'Unsupported Format',
+        description: 'Only .mp4, .webm, and .mov formats are allowed.',
+      })
       e.target.value = ''
       return
     }
@@ -1236,10 +1281,18 @@ export default function MapComponent() {
       }
 
       await fetchTowerVideo(towerId, type)
-      alert('Tower video uploaded successfully!')
+      CustomToast({
+        type: 'success',
+        headline: 'Tower video uploaded successfully!',
+        description: '',
+      })
     } catch (err: any) {
       console.error('Error uploading tower video:', err)
-      alert(err.message || 'Error uploading tower video')
+      CustomToast({
+        type: 'failure',
+        headline: 'Error!',
+        description: err.message || 'Error uploading tower video',
+      })
     } finally {
       setUploadingTowerVideo(false)
       e.target.value = ''
@@ -1259,11 +1312,96 @@ export default function MapComponent() {
     }
   }, [selectedFeature, activeTowerVideoTab, activeDetailTab])
 
+  // Fetch remarks for tower
+  const fetchRemarks = async (towerId: string) => {
+    setFetchingRemarks(true)
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/s3/remarks/${encodeURIComponent(towerId)}`,
+        { credentials: 'include' },
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setRemarks(data)
+      } else {
+        setRemarks([])
+      }
+    } catch (err) {
+      console.error('Error fetching remarks:', err)
+      setRemarks([])
+    } finally {
+      setFetchingRemarks(false)
+    }
+  }
+
+  // Add remark for tower
+  const handleCreateRemark = async (towerId: string) => {
+    if (!newRemarkText.trim()) return
+
+    setSubmittingRemark(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/s3/remarks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          towerId,
+          text: newRemarkText.trim(),
+        }),
+        credentials: 'include',
+      })
+
+      if (res.ok) {
+        setNewRemarkText('')
+        await fetchRemarks(towerId)
+        CustomToast({
+          type: 'success',
+          headline: 'Remark added successfully',
+          description: '',
+        })
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || 'Failed to submit remark')
+      }
+    } catch (err: any) {
+      console.error('Error creating remark:', err)
+      CustomToast({
+        type: 'failure',
+        headline: 'Error!',
+        description: err.message || 'Error submitting remark',
+      })
+    } finally {
+      setSubmittingRemark(false)
+    }
+  }
+
+  // Fetch remarks when selected tower or tab changes
+  useEffect(() => {
+    if (
+      selectedFeature &&
+      selectedFeature.type === 'tower' &&
+      activeDetailTab === 'remarks'
+    ) {
+      fetchRemarks(selectedFeature.id)
+    }
+  }, [selectedFeature, activeDetailTab])
+
   useEffect(() => {
     if (lightboxPhoto) {
       setImageLoading(true)
     }
   }, [lightboxPhoto])
+
+  // Update map size when sidebar visibility changes
+  useEffect(() => {
+    if (mapInstanceRef.current) {
+      const timer = setTimeout(() => {
+        mapInstanceRef.current?.updateSize()
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [sidebarOpen])
 
   // Sync photos to the map's photoLayer
   useEffect(() => {
@@ -1423,9 +1561,9 @@ export default function MapComponent() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
       {/* 1. Glassmorphic Sidebar */}
-      <div className="w-96 flex flex-col bg-slate-900 border-r border-slate-800 h-full shadow-2xl z-10 overflow-hidden shrink-0">
+      <div className={`transition-all duration-300 ${sidebarOpen ? 'w-96 border-r border-slate-800' : 'w-0 border-r-0'} flex flex-col bg-slate-900 h-full shadow-2xl z-10 overflow-hidden shrink-0`}>
         {/* Header */}
-        <Header />
+        <Header onCollapse={() => setSidebarOpen(false)} />
 
         {/* Scrollable Contents */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
@@ -1750,6 +1888,15 @@ export default function MapComponent() {
 
         {/* Map Header Overlay */}
         <div className="absolute top-5 left-5 pointer-events-none z-10 flex gap-2.5">
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              title="Show Control Panel"
+              className="bg-slate-900/90 backdrop-blur-md border border-slate-800/80 p-2 rounded-xl shadow-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 pointer-events-auto flex items-center justify-center cursor-pointer"
+            >
+              <ChevronRight className="h-4.5 w-4.5" />
+            </button>
+          )}
           <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/40 px-4 py-2 rounded-2xl flex items-center gap-2.5 shadow-xl pointer-events-auto">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
             <span className="text-xs font-semibold text-slate-200">
@@ -1831,7 +1978,7 @@ export default function MapComponent() {
 
           {/* Layer Visibility Toggles */}
           <div className="flex items-center gap-1 px-1">
-            <button
+            {/* <button
               onClick={() => setShowFeeders(!showFeeders)}
               title="Toggle 220kV Feeder Lines"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
@@ -1846,7 +1993,7 @@ export default function MapComponent() {
                 <EyeOff className="h-3.5 w-3.5" />
               )}
               <span className="hidden sm:inline">Feeders</span>
-            </button>
+            </button> */}
             <button
               onClick={() => setShowTowers(!showTowers)}
               title="Toggle Transmission Towers"
@@ -1948,6 +2095,17 @@ export default function MapComponent() {
                   >
                     <Play className="h-3.5 w-3.5" />
                     <span>Tower Videos</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('remarks')}
+                    className={`flex items-center gap-2 px-6 py-3 text-xs font-bold transition-all border-b-2 ${
+                      activeDetailTab === 'remarks'
+                        ? 'border-emerald-500 text-emerald-400 bg-slate-950/30'
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-950/20'
+                    }`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>Remarks Log</span>
                   </button>
                 </div>
               )}
@@ -2425,10 +2583,13 @@ export default function MapComponent() {
                         <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
                           <Video className="h-12 w-12 text-slate-700 mb-3" />
                           <span className="text-sm font-semibold text-slate-400 mb-1">
-                            No {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'} video for this span
+                            No {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'}{' '}
+                            video for this span
                           </span>
                           <span className="text-xs text-slate-500 mb-5">
-                            Upload a {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'} drone flyover video
+                            Upload a{' '}
+                            {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'} drone
+                            flyover video
                           </span>
                           <label className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-500 hover:from-violet-700 hover:to-purple-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 active:scale-[0.98]">
                             {uploadingVideo ? (
@@ -2438,7 +2599,11 @@ export default function MapComponent() {
                             ) : (
                               <>
                                 <Upload className="h-4 w-4" />
-                                <span>Upload {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'} Video</span>
+                                <span>
+                                  Upload{' '}
+                                  {activeVideoTab === 'rgb' ? 'RGB' : 'Thermal'}{' '}
+                                  Video
+                                </span>
                               </>
                             )}
                             <input
@@ -2471,7 +2636,7 @@ export default function MapComponent() {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : activeDetailTab === 'tower-shorts' ? (
                 /* ===== TOWER VIDEOS TAB ===== */
                 <div className="flex-1 flex flex-col min-h-0 p-6 space-y-5">
                   {/* Video Type Toggle */}
@@ -2517,7 +2682,9 @@ export default function MapComponent() {
                             <span>{towerVideo.filename}</span>
                           </h4>
                           <span className="text-[9px] text-slate-500 font-medium">
-                            {new Date(towerVideo.createdAt).toLocaleDateString()}
+                            {new Date(
+                              towerVideo.createdAt,
+                            ).toLocaleDateString()}
                           </span>
                         </div>
                         <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 min-h-0">
@@ -2535,7 +2702,9 @@ export default function MapComponent() {
                         <div className="flex items-center gap-3 mt-3 shrink-0">
                           <label className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 cursor-pointer transition-all">
                             {uploadingTowerVideo ? (
-                              <span className="animate-pulse">Uploading...</span>
+                              <span className="animate-pulse">
+                                Uploading...
+                              </span>
                             ) : (
                               <>
                                 <Upload className="h-3.5 w-3.5" />
@@ -2565,10 +2734,13 @@ export default function MapComponent() {
                       <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
                         <Video className="h-12 w-12 text-slate-700 mb-3" />
                         <span className="text-sm font-semibold text-slate-400 mb-1">
-                          No {activeTowerVideoTab === 'rgb' ? 'RGB' : 'Thermal'} video for this tower
+                          No {activeTowerVideoTab === 'rgb' ? 'RGB' : 'Thermal'}{' '}
+                          video for this tower
                         </span>
                         <span className="text-xs text-slate-500 mb-5">
-                          Upload a {activeTowerVideoTab === 'rgb' ? 'RGB' : 'Thermal'} drone short video
+                          Upload a{' '}
+                          {activeTowerVideoTab === 'rgb' ? 'RGB' : 'Thermal'}{' '}
+                          drone short video
                         </span>
                         <label className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-fuchsia-600 to-pink-500 hover:from-fuchsia-700 hover:to-pink-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-lg shadow-fuchsia-500/20 hover:shadow-fuchsia-500/30 active:scale-[0.98]">
                           {uploadingTowerVideo ? (
@@ -2576,7 +2748,13 @@ export default function MapComponent() {
                           ) : (
                             <>
                               <Upload className="h-4 w-4" />
-                              <span>Upload {activeTowerVideoTab === 'rgb' ? 'RGB' : 'Thermal'} Video</span>
+                              <span>
+                                Upload{' '}
+                                {activeTowerVideoTab === 'rgb'
+                                  ? 'RGB'
+                                  : 'Thermal'}{' '}
+                                Video
+                              </span>
                             </>
                           )}
                           <input
@@ -2598,6 +2776,83 @@ export default function MapComponent() {
                         </span>
                       </div>
                     )}
+                  </div>
+                </div>
+              ) : (
+                /* ===== REMARKS TAB ===== */
+                <div className="flex-1 flex flex-col min-h-0 p-6 space-y-5">
+                  {/* Header/Title */}
+                  <div className="shrink-0 flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-emerald-400" />
+                      <span>Remarks Log ({remarks.length})</span>
+                    </h4>
+                  </div>
+
+                  {/* Remarks List */}
+                  <div className="flex-1 overflow-y-auto min-h-0 space-y-3.5 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                    {fetchingRemarks ? (
+                      <div className="h-full flex flex-col items-center justify-center">
+                        <div className="h-8 w-8 border-3 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-3" />
+                        <span className="text-xs text-slate-400 font-medium animate-pulse">
+                          Loading remarks...
+                        </span>
+                      </div>
+                    ) : remarks.length > 0 ? (
+                      remarks.map((remark) => (
+                        <div
+                          key={remark.id}
+                          className="bg-slate-950/60 border border-slate-850 p-4 rounded-2xl space-y-2 relative group hover:border-slate-800 transition-all"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-200">
+                              @{remark.user?.username || 'user'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {new Date(remark.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                            {remark.text}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs py-8">
+                        <MessageSquare className="h-8 w-8 text-slate-800 mb-2" />
+                        <span>No remarks logged for this tower yet.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* New Remark Input Form */}
+                  <div className="shrink-0 pt-3 border-t border-slate-800">
+                    <div className="flex gap-2">
+                      <textarea
+                        value={newRemarkText}
+                        onChange={(e) => setNewRemarkText(e.target.value)}
+                        placeholder="Add a remark or maintenance log..."
+                        disabled={submittingRemark}
+                        className="flex-1 min-h-[44px] max-h-[120px] bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none transition-all resize-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleCreateRemark(selectedFeature.id)
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => handleCreateRemark(selectedFeature.id)}
+                        disabled={submittingRemark || !newRemarkText.trim()}
+                        className="shrink-0 flex items-center justify-center h-11 w-11 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white disabled:text-slate-500 rounded-xl transition-all shadow-lg shadow-emerald-600/10 hover:shadow-emerald-500/20 active:scale-[0.97]"
+                      >
+                        {submittingRemark ? (
+                          <div className="h-4 w-4 border-2 border-slate-500/20 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4 rotate-0 translate-x-0.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
