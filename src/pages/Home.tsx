@@ -2,7 +2,7 @@ import CustomToast from '#/components/CustomToast'
 import { ErrorComponent } from '#/components/Error'
 import { Header } from '#/components/Header'
 import { LoadingComponent } from '#/components/Loading'
-import { VideoController } from '#/components/VideoController'
+import { VideoPlayer } from '#/components/VideoController'
 import {
   calculateHaversineDistance,
   compressImageToBlob,
@@ -2539,7 +2539,7 @@ export default function MapComponent() {
                             </span>
                           </div>
                           <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 min-h-0">
-                            <VideoController url={spanVideo.url} />
+                            <VideoPlayer src={spanVideo.url} />
                           </div>
                           {/* Replace existing video */}
                           <div className="flex items-center gap-3 mt-3 shrink-0">
@@ -2683,15 +2683,10 @@ export default function MapComponent() {
                           </span>
                         </div>
                         <div className="flex-1 bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 min-h-0">
-                          <video
-                            key={towerVideo.url}
-                            controls
-                            className="w-full h-full object-contain"
+                          <VideoPlayer
+                            src={towerVideo.url}
                             poster={towerVideo.thumbnailUrl || undefined}
-                          >
-                            <source src={towerVideo.url} />
-                            Your browser does not support the video element.
-                          </video>
+                          />
                         </div>
                         {/* Replace existing video */}
                         <div className="flex items-center gap-3 mt-3 shrink-0">

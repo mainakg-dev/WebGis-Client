@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@plugin "@vidstack/react/tailwind.cjs";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
